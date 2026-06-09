@@ -1,6 +1,8 @@
 """LangGraph entrypoint: compiled worker agent."""
 
-from agents.worker import WORKER_NAME, create_worker_agent
+from config.agent_config import get_worker_name
+
+from agents.worker import create_worker_agent
 
 
 async def make_graph():
@@ -8,4 +10,4 @@ async def make_graph():
     return await create_worker_agent()
 
 
-__all__ = ["WORKER_NAME", "create_worker_agent", "make_graph"]
+__all__ = ["get_worker_name", "create_worker_agent", "make_graph"]

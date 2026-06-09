@@ -27,7 +27,7 @@ flowchart LR
 | File | Role |
 |------|------|
 | [`config/agent_config.py`](config/agent_config.py) | Yarn config — `mcp_tags`, prompt, `build_system_prompt()` |
-| [`agents/worker.py`](agents/worker.py) | Common factory — `create_worker_agent()`, `WORKER_NAME` |
+| [`agents/worker.py`](agents/worker.py) | Common factory — `create_worker_agent()`; name via `get_worker_name()` in [`config/agent_config.py`](config/agent_config.py) |
 | [`agents/graph.py`](agents/graph.py) | LangGraph CLI entrypoint |
 | [`config/settings.py`](config/settings.py) | Runtime settings from `.env` |
 | [`langgraph.json`](langgraph.json) | Graph id `yarn_worker` |

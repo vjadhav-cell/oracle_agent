@@ -1,5 +1,7 @@
 """Worker agent package."""
 
-from agents.worker import WORKER_NAME, create_worker_agent
+from config.agent_config import get_worker_name
 
-__all__ = ["WORKER_NAME", "create_worker_agent"]
+from agents.worker import create_worker_agent
+
+__all__ = ["get_worker_name", "create_worker_agent"]

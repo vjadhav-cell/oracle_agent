@@ -7,8 +7,8 @@ import pytest
 from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
 
-from config.agent_config import get_mcp_tags
-from agents.worker import WORKER_NAME, create_worker_agent
+from config.agent_config import get_mcp_tags, get_worker_name
+from agents.worker import create_worker_agent
 from config.settings import Settings
 
 
@@ -68,7 +68,7 @@ async def test_worker_agent_name() -> None:
     ):
         graph = await create_worker_agent(Settings())
 
-    assert graph.name == WORKER_NAME
+    assert graph.name == get_worker_name()
 
 
 @pytest.mark.asyncio
@@ -107,4 +107,4 @@ async def test_create_worker_agent_passes_tool_tags() -> None:
 
     assert captured_factory
     assert captured_factory[0].kwargs["tool_tags"] == get_mcp_tags()
-    assert captured_factory[0].kwargs["agent_name"] == WORKER_NAME
+    assert captured_factory[0].kwargs["agent_name"] == get_worker_name()

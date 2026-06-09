@@ -42,7 +42,7 @@ To customize this deployment, edit **`config/agent_config.py`**:
 - **`mcp_tags`** — MCP tool tags passed to `AgentFactory` (here: `["yarn_streaming"]`)
 - **Prompt constants** + **`build_system_prompt()`** — system prompt assembled for the agent
 
-`WORKER_NAME = "yarn_worker"` in [`agents/worker.py`](./agents/worker.py) sets the graph name and LangGraph `assistant_id` for this microservice. Other worker repos keep the same factory code and change `agent_config.py` plus `WORKER_NAME` / `langgraph.json` for their own service id.
+`get_worker_name()` in [`config/agent_config.py`](../config/agent_config.py) sets the graph name and LangGraph `assistant_id` for this microservice. Other worker repos keep the same factory code and change `agent_config.py` plus `langgraph.json` for their own service id.
 
 ---
 
@@ -273,7 +273,7 @@ See [plan/mcp_yarn_tools_spec.md](./plan/mcp_yarn_tools_spec.md) for full input/
 | Model not found | Alias mismatch | Set `LITELLM_MODEL` to LiteLLM `model_name`; restart proxy |
 | Agent answers without calling tools | Model without tool support | Use a tool-capable alias on LiteLLM |
 | Empty tool results | YARN connectivity from MCP server | Fix RM/NM reachability from MCP server host, not agent |
-| Wrong graph / 404 on invoke | `assistant_id` mismatch | Use `"yarn_worker"` for this repo (see `langgraph.json` and `WORKER_NAME`) |
+| Wrong graph / 404 on invoke | `assistant_id` mismatch | Use `"yarn_worker"` for this repo (see `langgraph.json` and `get_worker_name()`) |
 
 ---
 

@@ -6,11 +6,9 @@ from agent_util.agent_factory import AgentFactory
 from langgraph.graph.state import CompiledStateGraph
 from shared_litellm import CustomLiteLLMModel
 
-from config.agent_config import build_system_prompt, get_mcp_tags
+from config.agent_config import build_system_prompt, get_mcp_tags, get_worker_name
 from agents.middleware.serializable_messages import SerializableMessagesMiddleware
 from config.settings import Settings, get_settings
-
-WORKER_NAME = "yarn_worker"
 
 
 def _build_model(settings: Settings) -> CustomLiteLLMModel:
@@ -38,7 +36,7 @@ async def create_worker_agent(
         ),
         tool_tags=get_mcp_tags(),
         model=_build_model(cfg),
-        agent_name=WORKER_NAME,
+        agent_name=get_worker_name(),
         agent_kwargs={"middleware": [SerializableMessagesMiddleware()]},
     )
     return await factory.build()
