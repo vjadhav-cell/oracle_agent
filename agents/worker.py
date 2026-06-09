@@ -1,25 +1,20 @@
-"""YARN streaming worker agent factory (LangChain create_agent harness)."""
+"""YARN streaming worker agent factory."""
 
 from __future__ import annotations
 
-from typing import cast
-
-from langchain.agents import create_agent
-from langchain.agents.middleware import ModelRetryMiddleware, ToolRetryMiddleware
-from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import BaseTool
+from agent_util.agent_factory import AgentFactory
 from langgraph.graph.state import CompiledStateGraph
-
-from agents.middleware.serializable_messages import SerializableMessagesMiddleware
-from agents.mcp_tools import load_yarn_mcp_tools
-from agents.prompts.yarn_worker_prompt import build_yarn_worker_prompt
-from config.settings import Settings, get_settings
 from shared_litellm import CustomLiteLLMModel
 
+from agents.middleware.serializable_messages import SerializableMessagesMiddleware
+from agents.prompts.yarn_worker_prompt import build_yarn_worker_prompt
+from config.settings import Settings, get_settings
+
 WORKER_NAME = "yarn_worker"
+YARN_TOOL_TAGS = ["yarn_streaming"]
 
 
-def _build_model(settings: Settings) -> BaseChatModel:
+def _build_model(settings: Settings) -> CustomLiteLLMModel:
     """Chat model for the worker loop (shared_litellm CustomLiteLLMModel)."""
     return CustomLiteLLMModel(
         model=settings.litellm_model,
@@ -29,50 +24,22 @@ def _build_model(settings: Settings) -> BaseChatModel:
     )
 
 
-def _build_middleware(tools: list[BaseTool]) -> list[
-    SerializableMessagesMiddleware
-    | ModelRetryMiddleware
-    | ToolRetryMiddleware
-]:
-    """Resilience and LangGraph-safe message metadata for local dev / Studio."""
-    tool_names = [tool.name for tool in tools]
-    return [
-        SerializableMessagesMiddleware(),
-        ModelRetryMiddleware(max_retries=2),
-        ToolRetryMiddleware(
-            max_retries=2,
-            tools=cast(list[BaseTool | str], tool_names),
-        ),
-    ]
-
-
-def _compile_yarn_worker_agent(
-    cfg: Settings,
-    tools: list[BaseTool],
+async def create_yarn_worker_agent(
+    settings: Settings | None = None,
 ) -> CompiledStateGraph:
-    """Build the compiled agent graph from model, tools, and settings."""
-    return create_agent(
-        model=_build_model(cfg),
-        tools=tools,
+    """
+    Create the YARN worker agent via AgentFactory (MCP tools filtered by tag).
+
+    MCP connections remain open for the process lifetime (LangGraph CLI).
+    """
+    cfg = settings or get_settings()
+    factory = AgentFactory(
         system_prompt=build_yarn_worker_prompt(
             instance_limit=cfg.streaming_app_instance_limit,
         ),
-        middleware=_build_middleware(tools),
-        name=WORKER_NAME,
+        tool_tags=YARN_TOOL_TAGS,
+        model=_build_model(cfg),
+        agent_name=WORKER_NAME,
+        agent_kwargs={"middleware": [SerializableMessagesMiddleware()]},
     )
-
-
-async def create_yarn_worker_agent(
-    settings: Settings | None = None,
-    *,
-    tools: list[BaseTool] | None = None,
-) -> CompiledStateGraph:
-    """
-    Create the YARN worker agent: model + MCP tools loop until the task completes.
-
-    Uses LangChain ``create_agent`` (model calls tools until done).
-    See https://docs.langchain.com/oss/python/langchain/agents
-    """
-    cfg = settings or get_settings()
-    resolved_tools = tools if tools is not None else await load_yarn_mcp_tools(cfg)
-    return _compile_yarn_worker_agent(cfg, resolved_tools)
+    return await factory.build()

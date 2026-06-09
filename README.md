@@ -31,8 +31,7 @@ cp .env.example .env
 
 | Variable | Description |
 |----------|-------------|
-| `MCP_URL` | YARN MCP server URL (default `http://127.0.0.1:8080/mcp`) |
-| `MCP_TIMEOUT` | MCP connection timeout in seconds (default `30`) |
+| `MCP_HOST` / `MCP_PORT` | YARN MCP server (default `127.0.0.1:8080`); tools filtered by `yarn_streaming` tag via `AgentFactory` |
 | `STREAMING_APP_INSTANCE_LIMIT` | Default `3` — used in agent prompt |
 | `LITELLM_API_BASE` / `LITELLM_API_KEY` / `LITELLM_MODEL` | LiteLLM proxy |
 

@@ -5,31 +5,15 @@ from functools import lru_cache
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-YARN_MCP_TOOL_NAMES: tuple[str, ...] = (
-    "yarn.getApplicationLogsByName",
-    "yarn.getAppAttempts",
-    "yarn.tailContainerLogs",
-)
-YARN_MCP_TOOL_TAG = "yarn_streaming"
-
 
 class Settings(BaseSettings):
-    """Central configuration for the YARN worker agent and MCP server."""
+    """Central configuration for the YARN worker agent."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         populate_by_name=True,
-    )
-
-    mcp_url: str = Field(
-        default="http://127.0.0.1:8080/mcp",
-        validation_alias=AliasChoices("mcp_url", "MCP_URL"),
-    )
-    mcp_timeout: float = Field(
-        default=30.0,
-        validation_alias=AliasChoices("mcp_timeout", "MCP_TIMEOUT"),
     )
 
     streaming_app_instance_limit: int = 3

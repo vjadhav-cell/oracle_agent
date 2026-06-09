@@ -10,7 +10,7 @@ This document explains what to install locally, how to connect your **existing L
 | **MCP server** (external) | Exposes `yarn.getApplicationLogsByName`, `yarn.getAppAttempts`, `yarn.tailContainerLogs` |
 | **LiteLLM proxy** (you already have this) | OpenAI-compatible API for the agent chat model |
 
-The agent repo contains **no embedded YARN tools** — all YARN I/O goes through the MCP server at `MCP_URL`.
+The agent repo contains **no embedded YARN tools** — all YARN I/O goes through the MCP server. `AgentFactory` (from **agent-util**) loads tools tagged `yarn_streaming` from `MCP_HOST`/`MCP_PORT`.
 
 ---
 
@@ -20,7 +20,7 @@ The agent repo contains **no embedded YARN tools** — all YARN I/O goes through
 |-------------|-----------------|
 | **Python** | **3.11+** (see `langgraph.json`) |
 | **LiteLLM proxy** | Already running locally (default port **4000**) |
-| **YARN MCP server** | Running at `MCP_URL` (default `http://127.0.0.1:8080/mcp`); must reach YARN RM/NM |
+| **YARN MCP server** | Running at `MCP_HOST`:`MCP_PORT` (default `127.0.0.1:8080`); must reach YARN RM/NM |
 | **Network** | MCP server must reach RM Web Services + NodeManager log URLs |
 
 Optional:
@@ -50,8 +50,7 @@ What `requirements.txt` pulls in:
 
 - **langgraph-cli[inmem]** — `langgraph dev` (in-memory Agent Server, hot reload)
 - **langgraph / langchain** — agent graph and chat model
-- **langchain-mcp-adapters** — MCP tool discovery and LangChain tool conversion
-- **agent-util / shared_litellm** — `CustomLiteLLMModel` HTTP client for the agent chat loop
+- **agent-util** — `AgentFactory` (MCP tool discovery by tag) and `CustomLiteLLMModel` HTTP client
 - **pydantic, pydantic-settings, python-dotenv** — config
 - **pytest, pytest-asyncio** — unit tests
 
@@ -75,8 +74,8 @@ Edit `.env` for your environment.
 
 | Variable | Example | Notes |
 |----------|---------|--------|
-| `MCP_URL` | `http://127.0.0.1:8080/mcp` | YARN MCP server endpoint |
-| `MCP_TIMEOUT` | `30` | Seconds to wait for MCP tool discovery |
+| `MCP_HOST` | `127.0.0.1` | YARN MCP server host (read by agent-util `AgentFactory`) |
+| `MCP_PORT` | `8080` | YARN MCP server port |
 
 Start the MCP server **before** `langgraph dev`. See [plan/mcp_yarn_tools_spec.md](./plan/mcp_yarn_tools_spec.md) for server implementation.
 
@@ -128,7 +127,7 @@ The worker never talks to Ollama directly; it only talks to the proxy.
 
 ### Start MCP server first
 
-Ensure the YARN MCP server is running at `MCP_URL` before starting LangGraph.
+Ensure the YARN MCP server is running at `MCP_HOST`:`MCP_PORT` before starting LangGraph.
 
 ### Development server (recommended)
 
@@ -163,7 +162,7 @@ source .venv/bin/activate
 pytest tests/ -q
 ```
 
-Covers MCP tool loading (mocked), agent graph compilation, and `CustomLiteLLMModel` configuration.
+Covers agent graph compilation (mocked MCP via `AgentFactory`) and `CustomLiteLLMModel` configuration.
 
 ### B. LiteLLM only
 
@@ -233,8 +232,8 @@ See [plan/mcp_yarn_tools_spec.md](./plan/mcp_yarn_tools_spec.md) for full input/
 | Symptom | Likely cause | What to do |
 |---------|----------------|------------|
 | `langgraph: command not found` | venv not active or deps not installed | `source .venv/bin/activate && pip install -r requirements.txt` |
-| MCP connection failed at startup | MCP server not running | Start MCP server at `MCP_URL` before `langgraph dev` |
-| `MCP server missing tools` | Wrong MCP server or incomplete deployment | Verify all three `yarn.*` tools are registered |
+| MCP connection failed at startup | MCP server not running | Start MCP server at `MCP_HOST`:`MCP_PORT` before `langgraph dev` |
+| No tools matched `yarn_streaming` tag | Wrong MCP server or missing tool metadata | Verify MCP tools declare the `yarn_streaming` FastMCP tag |
 | Proxy 401/403 | Wrong `LITELLM_API_KEY` | Match proxy master key / virtual key |
 | Model not found | Alias mismatch | Set `LITELLM_MODEL` to LiteLLM `model_name`; restart proxy |
 | Agent answers without calling tools | Model without tool support | Use a tool-capable alias on LiteLLM |
@@ -246,7 +245,7 @@ See [plan/mcp_yarn_tools_spec.md](./plan/mcp_yarn_tools_spec.md) for full input/
 
 - [ ] Python 3.11 venv + `pip install -r requirements.txt`
 - [ ] `.env` copied from `.env.example` and filled in
-- [ ] YARN MCP server running at `MCP_URL`
+- [ ] YARN MCP server running at `MCP_HOST`:`MCP_PORT`
 - [ ] LiteLLM proxy up; `curl .../health` OK
 - [ ] `LITELLM_MODEL` matches proxy alias; chat completion smoke test OK
 - [ ] `langgraph dev` starts; Studio or curl stream returns tool calls + summary

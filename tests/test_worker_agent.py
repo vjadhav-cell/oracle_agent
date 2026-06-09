@@ -1,10 +1,13 @@
 """Tests for YARN worker agent factory."""
 
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
 
-from agents.worker import WORKER_NAME, _compile_yarn_worker_agent
+from agents.worker import WORKER_NAME, YARN_TOOL_TAGS, create_yarn_worker_agent
 from config.settings import Settings
 
 
@@ -14,29 +17,93 @@ def _stub_yarn_tool() -> str:
     return "ok"
 
 
-def test_compile_yarn_worker_agent_graph() -> None:
+@pytest.mark.asyncio
+async def test_create_yarn_worker_agent_graph() -> None:
     """Factory returns a compiled LangGraph with model and tools nodes."""
-    graph = _compile_yarn_worker_agent(
-        Settings(streaming_app_instance_limit=2),
-        tools=[_stub_yarn_tool],
-    )
+    mock_manager = MagicMock()
+    mock_manager.shutdown = AsyncMock()
+
+    with (
+        patch(
+            "agent_util.agent_factory.fetch_mcp_tools_by_tags",
+            new_callable=AsyncMock,
+            return_value=(mock_manager, [_stub_yarn_tool]),
+        ),
+        patch(
+            "agent_util.agent_factory._get_create_agent",
+            side_effect=lambda: __import__(
+                "langchain.agents", fromlist=["create_agent"]
+            ).create_agent,
+        ),
+    ):
+        graph = await create_yarn_worker_agent(
+            Settings(streaming_app_instance_limit=2),
+        )
+
     assert isinstance(graph, CompiledStateGraph)
     nodes = set(graph.get_graph().nodes.keys())
     assert "model" in nodes
     assert "tools" in nodes
 
 
-def test_worker_agent_name() -> None:
+@pytest.mark.asyncio
+async def test_worker_agent_name() -> None:
     """Graph is named for LangGraph / multi-agent embedding."""
-    graph = _compile_yarn_worker_agent(Settings(), tools=[_stub_yarn_tool])
+    mock_manager = MagicMock()
+    mock_manager.shutdown = AsyncMock()
+
+    with (
+        patch(
+            "agent_util.agent_factory.fetch_mcp_tools_by_tags",
+            new_callable=AsyncMock,
+            return_value=(mock_manager, [_stub_yarn_tool]),
+        ),
+        patch(
+            "agent_util.agent_factory._get_create_agent",
+            side_effect=lambda: __import__(
+                "langchain.agents", fromlist=["create_agent"]
+            ).create_agent,
+        ),
+    ):
+        graph = await create_yarn_worker_agent(Settings())
+
     assert graph.name == WORKER_NAME
 
 
 @pytest.mark.asyncio
-async def test_create_yarn_worker_agent_uses_injected_tools() -> None:
-    """Async factory accepts pre-built tools without contacting MCP."""
-    from agents.worker import create_yarn_worker_agent
+async def test_create_yarn_worker_agent_passes_tool_tags() -> None:
+    """AgentFactory is configured with yarn_streaming tool tags."""
+    mock_manager = MagicMock()
+    mock_manager.shutdown = AsyncMock()
+    captured_factory: list[SimpleNamespace] = []
 
-    graph = await create_yarn_worker_agent(tools=[_stub_yarn_tool])
-    assert isinstance(graph, CompiledStateGraph)
-    assert graph.name == WORKER_NAME
+    original_init = __import__(
+        "agent_util.agent_factory", fromlist=["AgentFactory"]
+    ).AgentFactory.__init__
+
+    def _capture_init(self, *args, **kwargs):
+        captured_factory.append(SimpleNamespace(args=args, kwargs=kwargs))
+        return original_init(self, *args, **kwargs)
+
+    with (
+        patch(
+            "agent_util.agent_factory.fetch_mcp_tools_by_tags",
+            new_callable=AsyncMock,
+            return_value=(mock_manager, [_stub_yarn_tool]),
+        ),
+        patch(
+            "agent_util.agent_factory._get_create_agent",
+            side_effect=lambda: __import__(
+                "langchain.agents", fromlist=["create_agent"]
+            ).create_agent,
+        ),
+        patch(
+            "agent_util.agent_factory.AgentFactory.__init__",
+            _capture_init,
+        ),
+    ):
+        await create_yarn_worker_agent(Settings())
+
+    assert captured_factory
+    assert captured_factory[0].kwargs["tool_tags"] == YARN_TOOL_TAGS
+    assert captured_factory[0].kwargs["agent_name"] == WORKER_NAME
