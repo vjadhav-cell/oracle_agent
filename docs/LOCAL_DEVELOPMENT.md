@@ -1,6 +1,6 @@
 # Local development guide — yarn-worker
 
-This document explains what to install locally, how to connect your **existing LiteLLM proxy** and **YARN MCP server**, and how to run and test the YARN worker agent.
+This document explains what to install locally, how to connect your **existing LiteLLM proxy** and **YARN MCP server**, and how to run and test the **yarn_worker** LangGraph microservice.
 
 ## What you are running
 
@@ -10,7 +10,39 @@ This document explains what to install locally, how to connect your **existing L
 | **MCP server** (external) | Exposes `yarn.getApplicationLogsByName`, `yarn.getAppAttempts`, `yarn.tailContainerLogs` |
 | **LiteLLM proxy** (you already have this) | OpenAI-compatible API for the agent chat model |
 
-The agent repo contains **no embedded YARN tools** — all YARN I/O goes through the MCP server. `AgentFactory` (from **agent-util**) loads tools tagged `yarn_streaming` from `MCP_HOST`/`MCP_PORT`.
+The agent repo contains **no embedded YARN tools** — all YARN I/O goes through the MCP server. `AgentFactory` (from **agent-util**) loads tools from `MCP_HOST`/`MCP_PORT` filtered by the tags declared in [`config/agent_config.py`](./config/agent_config.py).
+
+Each worker type is deployed as its **own microservice** with its own graph / `assistant_id`. This repo is the **yarn_worker** deployment; API calls use `assistant_id: "yarn_worker"` (see [`langgraph.json`](./langgraph.json)).
+
+---
+
+## Project layout
+
+This repo uses a **shared worker template** plus **yarn-specific configuration**:
+
+| File | Role |
+|------|------|
+| [`config/agent_config.py`](./config/agent_config.py) | **Yarn worker config** — `mcp_tags` and system prompt (`build_system_prompt`) |
+| [`agents/worker.py`](./agents/worker.py) | **Common factory** — `create_worker_agent()`, LiteLLM model, `AgentFactory` wiring |
+| [`agents/graph.py`](./agents/graph.py) | LangGraph CLI entrypoint (`make_graph`) |
+| [`config/settings.py`](./config/settings.py) | Runtime settings from `.env` (LiteLLM, `STREAMING_APP_INSTANCE_LIMIT`, etc.) |
+| [`langgraph.json`](./langgraph.json) | Registers graph id `yarn_worker` |
+
+```mermaid
+flowchart LR
+    agent_config["agent_config.py\nmcp_tags + prompt"]
+    worker["worker.py\ncreate_worker_agent"]
+    graph["graph.py\nmake_graph"]
+    langgraph["langgraph.json\nyarn_worker"]
+    agent_config --> worker --> graph --> langgraph
+```
+
+To customize this deployment, edit **`config/agent_config.py`**:
+
+- **`mcp_tags`** — MCP tool tags passed to `AgentFactory` (here: `["yarn_streaming"]`)
+- **Prompt constants** + **`build_system_prompt()`** — system prompt assembled for the agent
+
+`WORKER_NAME = "yarn_worker"` in [`agents/worker.py`](./agents/worker.py) sets the graph name and LangGraph `assistant_id` for this microservice. Other worker repos keep the same factory code and change `agent_config.py` plus `WORKER_NAME` / `langgraph.json` for their own service id.
 
 ---
 
@@ -37,8 +69,6 @@ You do **not** need a separate Ollama install in this repo if Ollama is already 
 From the repo root:
 
 ```bash
-cd /home/arab/Projects/big-data/yarn-worker
-
 python3.11 -m venv .venv
 source .venv/bin/activate
 
@@ -83,7 +113,9 @@ Start the MCP server **before** `langgraph dev`. See [plan/mcp_yarn_tools_spec.m
 
 | Variable | Example | Notes |
 |----------|---------|--------|
-| `STREAMING_APP_INSTANCE_LIMIT` | `3` | How many restarts the prompt references |
+| `STREAMING_APP_INSTANCE_LIMIT` | `3` | Passed into `build_system_prompt()` in `agent_config.py` |
+
+Workflow, rules, and output format are defined in code in [`config/agent_config.py`](./config/agent_config.py), not in `.env`.
 
 ### LiteLLM proxy (use your existing instance)
 
@@ -92,6 +124,7 @@ Start the MCP server **before** `langgraph dev`. See [plan/mcp_yarn_tools_spec.m
 | `LITELLM_API_BASE` or `LITELLM_SERVER_URL` | `http://127.0.0.1:4000` | Proxy base URL; `/v1` suffix is optional |
 | `LITELLM_API_KEY` | `sk-...` | Must match what your proxy expects |
 | `LITELLM_MODEL` or `DEFAULT_MODEL` | `gemma4` | Must match the **model alias** in LiteLLM `config.yaml` |
+| `AGENT_TEMPERATURE` | `0` | Chat temperature for the worker loop |
 
 Health check:
 
@@ -139,7 +172,7 @@ langgraph dev
 - API: **<http://127.0.0.1:2024>**
 - OpenAPI: **<http://127.0.0.1:2024/docs>**
 - Terminal prints a **LangGraph Studio** URL for interactive chat
-- Loads graph `yarn_worker` from `langgraph.json` via async `make_graph` (connects to MCP at startup)
+- Loads graph `yarn_worker` from `langgraph.json` via async `make_graph` (connects to MCP at startup using `mcp_tags` from `agent_config.py`)
 
 ### Production-like local (optional)
 
@@ -162,7 +195,7 @@ source .venv/bin/activate
 pytest tests/ -q
 ```
 
-Covers agent graph compilation (mocked MCP via `AgentFactory`) and `CustomLiteLLMModel` configuration.
+Covers agent graph compilation (mocked MCP via `AgentFactory`), `mcp_tags` wiring from `agent_config.py`, and `CustomLiteLLMModel` configuration.
 
 ### B. LiteLLM only
 
@@ -217,6 +250,8 @@ After `langgraph dev`, open the Studio link from the terminal and send the same 
 
 ## 6. MCP tool contract
 
+Tools are discovered by the `yarn_streaming` tag (`mcp_tags` in `agent_config.py`):
+
 | Tool | Purpose |
 |------|---------|
 | `yarn.getApplicationLogsByName` | Find instances by `applicationName`, fetch AM logs |
@@ -233,11 +268,12 @@ See [plan/mcp_yarn_tools_spec.md](./plan/mcp_yarn_tools_spec.md) for full input/
 |---------|----------------|------------|
 | `langgraph: command not found` | venv not active or deps not installed | `source .venv/bin/activate && pip install -r requirements.txt` |
 | MCP connection failed at startup | MCP server not running | Start MCP server at `MCP_HOST`:`MCP_PORT` before `langgraph dev` |
-| No tools matched `yarn_streaming` tag | Wrong MCP server or missing tool metadata | Verify MCP tools declare the `yarn_streaming` FastMCP tag |
+| No tools matched `yarn_streaming` tag | Wrong MCP server or missing tool metadata | Verify MCP tools declare the `yarn_streaming` FastMCP tag; check `mcp_tags` in `agent_config.py` |
 | Proxy 401/403 | Wrong `LITELLM_API_KEY` | Match proxy master key / virtual key |
 | Model not found | Alias mismatch | Set `LITELLM_MODEL` to LiteLLM `model_name`; restart proxy |
 | Agent answers without calling tools | Model without tool support | Use a tool-capable alias on LiteLLM |
 | Empty tool results | YARN connectivity from MCP server | Fix RM/NM reachability from MCP server host, not agent |
+| Wrong graph / 404 on invoke | `assistant_id` mismatch | Use `"yarn_worker"` for this repo (see `langgraph.json` and `WORKER_NAME`) |
 
 ---
 

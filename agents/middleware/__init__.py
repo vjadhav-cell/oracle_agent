@@ -1,4 +1,4 @@
-"""Agent middleware for the YARN worker."""
+"""Agent middleware for the worker."""
 
 from agents.middleware.serializable_messages import (
     SerializableMessagesMiddleware,

@@ -1,1 +1,1 @@
-"""Tests for yarn-worker."""
+"""Tests for worker agent."""

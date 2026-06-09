@@ -1,4 +1,6 @@
-"""YARN streaming worker agent system prompt."""
+"""Per-worker configuration — customize prompt and MCP tool tags to define a worker."""
+
+MCP_TOOL_TAGS=["yarn_streaming"]
 
 WORKER_ROLE = """You are a YARN Streaming Worker Agent. You retrieve logs from the last {instance_limit} application restarts of a streaming job on Apache YARN (Spark and similar workloads), then analyze and summarize them. Each restart receives a new applicationId; you resolve instances by logical applicationName, not by guessing ids."""
 
@@ -27,8 +29,8 @@ Include:
 - A short RCA narrative tying the evidence together"""
 
 
-def build_yarn_worker_prompt(instance_limit: int = 3) -> str:
-    """Assemble the YARN worker system prompt."""
+def build_system_prompt(instance_limit: int = 3) -> str:
+    """Assemble the worker system prompt."""
     return "\n\n".join(
         [
             WORKER_ROLE.format(instance_limit=instance_limit),
@@ -37,3 +39,8 @@ def build_yarn_worker_prompt(instance_limit: int = 3) -> str:
             WORKER_OUTPUT,
         ]
     )
+
+
+def get_mcp_tags() -> list[str]:
+    """Return MCP tool tags used to filter tools for this worker."""
+    return MCP_TOOL_TAGS

@@ -1,4 +1,4 @@
-"""Tests for YARN worker agent factory."""
+"""Tests for worker agent factory."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,18 +7,19 @@ import pytest
 from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
 
-from agents.worker import WORKER_NAME, YARN_TOOL_TAGS, create_yarn_worker_agent
+from config.agent_config import get_mcp_tags
+from agents.worker import WORKER_NAME, create_worker_agent
 from config.settings import Settings
 
 
 @tool
-def _stub_yarn_tool() -> str:
+def _stub_tool() -> str:
     """Stub tool for graph compilation tests."""
     return "ok"
 
 
 @pytest.mark.asyncio
-async def test_create_yarn_worker_agent_graph() -> None:
+async def test_create_worker_agent_graph() -> None:
     """Factory returns a compiled LangGraph with model and tools nodes."""
     mock_manager = MagicMock()
     mock_manager.shutdown = AsyncMock()
@@ -27,7 +28,7 @@ async def test_create_yarn_worker_agent_graph() -> None:
         patch(
             "agent_util.agent_factory.fetch_mcp_tools_by_tags",
             new_callable=AsyncMock,
-            return_value=(mock_manager, [_stub_yarn_tool]),
+            return_value=(mock_manager, [_stub_tool]),
         ),
         patch(
             "agent_util.agent_factory._get_create_agent",
@@ -36,7 +37,7 @@ async def test_create_yarn_worker_agent_graph() -> None:
             ).create_agent,
         ),
     ):
-        graph = await create_yarn_worker_agent(
+        graph = await create_worker_agent(
             Settings(streaming_app_instance_limit=2),
         )
 
@@ -56,7 +57,7 @@ async def test_worker_agent_name() -> None:
         patch(
             "agent_util.agent_factory.fetch_mcp_tools_by_tags",
             new_callable=AsyncMock,
-            return_value=(mock_manager, [_stub_yarn_tool]),
+            return_value=(mock_manager, [_stub_tool]),
         ),
         patch(
             "agent_util.agent_factory._get_create_agent",
@@ -65,14 +66,14 @@ async def test_worker_agent_name() -> None:
             ).create_agent,
         ),
     ):
-        graph = await create_yarn_worker_agent(Settings())
+        graph = await create_worker_agent(Settings())
 
     assert graph.name == WORKER_NAME
 
 
 @pytest.mark.asyncio
-async def test_create_yarn_worker_agent_passes_tool_tags() -> None:
-    """AgentFactory is configured with yarn_streaming tool tags."""
+async def test_create_worker_agent_passes_tool_tags() -> None:
+    """AgentFactory is configured with MCP tags from agent_config."""
     mock_manager = MagicMock()
     mock_manager.shutdown = AsyncMock()
     captured_factory: list[SimpleNamespace] = []
@@ -89,7 +90,7 @@ async def test_create_yarn_worker_agent_passes_tool_tags() -> None:
         patch(
             "agent_util.agent_factory.fetch_mcp_tools_by_tags",
             new_callable=AsyncMock,
-            return_value=(mock_manager, [_stub_yarn_tool]),
+            return_value=(mock_manager, [_stub_tool]),
         ),
         patch(
             "agent_util.agent_factory._get_create_agent",
@@ -102,8 +103,8 @@ async def test_create_yarn_worker_agent_passes_tool_tags() -> None:
             _capture_init,
         ),
     ):
-        await create_yarn_worker_agent(Settings())
+        await create_worker_agent(Settings())
 
     assert captured_factory
-    assert captured_factory[0].kwargs["tool_tags"] == YARN_TOOL_TAGS
+    assert captured_factory[0].kwargs["tool_tags"] == get_mcp_tags()
     assert captured_factory[0].kwargs["agent_name"] == WORKER_NAME

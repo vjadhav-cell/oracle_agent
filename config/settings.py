@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Central configuration for the YARN worker agent."""
+    """Central configuration for the worker agent."""
 
     model_config = SettingsConfigDict(
         env_file=".env",

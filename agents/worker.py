@@ -1,4 +1,4 @@
-"""YARN streaming worker agent factory."""
+"""Worker agent factory."""
 
 from __future__ import annotations
 
@@ -6,12 +6,11 @@ from agent_util.agent_factory import AgentFactory
 from langgraph.graph.state import CompiledStateGraph
 from shared_litellm import CustomLiteLLMModel
 
+from config.agent_config import build_system_prompt, get_mcp_tags
 from agents.middleware.serializable_messages import SerializableMessagesMiddleware
-from agents.prompts.yarn_worker_prompt import build_yarn_worker_prompt
 from config.settings import Settings, get_settings
 
 WORKER_NAME = "yarn_worker"
-YARN_TOOL_TAGS = ["yarn_streaming"]
 
 
 def _build_model(settings: Settings) -> CustomLiteLLMModel:
@@ -24,20 +23,20 @@ def _build_model(settings: Settings) -> CustomLiteLLMModel:
     )
 
 
-async def create_yarn_worker_agent(
+async def create_worker_agent(
     settings: Settings | None = None,
 ) -> CompiledStateGraph:
     """
-    Create the YARN worker agent via AgentFactory (MCP tools filtered by tag).
+    Create the worker agent via AgentFactory (MCP tools filtered by tag).
 
     MCP connections remain open for the process lifetime (LangGraph CLI).
     """
     cfg = settings or get_settings()
     factory = AgentFactory(
-        system_prompt=build_yarn_worker_prompt(
+        system_prompt=build_system_prompt(
             instance_limit=cfg.streaming_app_instance_limit,
         ),
-        tool_tags=YARN_TOOL_TAGS,
+        tool_tags=get_mcp_tags(),
         model=_build_model(cfg),
         agent_name=WORKER_NAME,
         agent_kwargs={"middleware": [SerializableMessagesMiddleware()]},
