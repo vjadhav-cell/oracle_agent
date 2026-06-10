@@ -1,7 +1,5 @@
 """Strip non-JSON-serializable metadata from model messages for LangGraph API persistence."""
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 from typing import Any
 

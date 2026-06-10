@@ -1,12 +1,10 @@
 """Worker agent factory."""
 
-from __future__ import annotations
-
 from agent_util.agent_factory import AgentFactory
 from langgraph.graph.state import CompiledStateGraph
 from shared_litellm import CustomLiteLLMModel
 
-from config.agent_config import build_system_prompt, get_mcp_tags, get_worker_name
+from config.agent_config import get_mcp_tags, get_worker_instructions, get_worker_name
 from agents.middleware.serializable_messages import SerializableMessagesMiddleware
 from config.settings import Settings, get_settings
 
@@ -31,7 +29,7 @@ async def create_worker_agent(
     """
     cfg = settings or get_settings()
     factory = AgentFactory(
-        system_prompt=build_system_prompt(
+        system_prompt=get_worker_instructions(
             instance_limit=cfg.streaming_app_instance_limit,
         ),
         tool_tags=get_mcp_tags(),
