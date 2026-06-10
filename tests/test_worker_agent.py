@@ -38,7 +38,7 @@ async def test_create_worker_agent_graph() -> None:
         ),
     ):
         graph = await create_worker_agent(
-            Settings(streaming_app_instance_limit=2),
+            Settings.model_validate({"STREAMING_APP_INSTANCE_LIMIT": 2}),
         )
 
     assert isinstance(graph, CompiledStateGraph)

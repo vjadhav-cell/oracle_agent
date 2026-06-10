@@ -22,10 +22,11 @@ This repo uses a **shared worker template** plus **yarn-specific configuration**
 
 | File | Role |
 |------|------|
-| [`config/agent_config.py`](./config/agent_config.py) | **Yarn worker config** — `mcp_tags` and system prompt (`build_system_prompt`) |
+| [`config/agent_config.py`](./config/agent_config.py) | **Yarn worker config** — `mcp_tags` and `get_worker_instructions()` |
+| [`agents/instructions.py`](./agents/instructions.py) | **Prompt blocks** — `WORKER_ROLE`, workflow, rules, output |
 | [`agents/worker.py`](./agents/worker.py) | **Common factory** — `create_worker_agent()`, LiteLLM model, `AgentFactory` wiring |
 | [`agents/graph.py`](./agents/graph.py) | LangGraph CLI entrypoint (`make_graph`) |
-| [`config/settings.py`](./config/settings.py) | Runtime settings from `.env` (LiteLLM, `STREAMING_APP_INSTANCE_LIMIT`, etc.) |
+| [`config/settings.py`](./config/settings.py) | Runtime settings from `.env` (extends agent-util `BaseAgentSettings`) |
 | [`langgraph.json`](./langgraph.json) | Registers graph id `yarn_worker` |
 
 ```mermaid
@@ -37,10 +38,10 @@ flowchart LR
     agent_config --> worker --> graph --> langgraph
 ```
 
-To customize this deployment, edit **`config/agent_config.py`**:
+To customize this deployment, edit **`config/agent_config.py`** and **`agents/instructions.py`**:
 
 - **`mcp_tags`** — MCP tool tags passed to `AgentFactory` (here: `["yarn_streaming"]`)
-- **Prompt constants** + **`build_system_prompt()`** — system prompt assembled for the agent
+- **Prompt blocks** in `agents/instructions.py` + **`get_worker_instructions()`** — system prompt assembled for the agent
 
 `get_worker_name()` in [`config/agent_config.py`](../config/agent_config.py) sets the graph name and LangGraph `assistant_id` for this microservice. Other worker repos keep the same factory code and change `agent_config.py` plus `langgraph.json` for their own service id.
 
@@ -73,16 +74,16 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
-What `requirements.txt` pulls in:
+What `requirements-dev.txt` pulls in:
 
 - **langgraph-cli[inmem]** — `langgraph dev` (in-memory Agent Server, hot reload)
 - **langgraph / langchain** — agent graph and chat model
 - **agent-util** — `AgentFactory` (MCP tool discovery by tag) and `CustomLiteLLMModel` HTTP client
 - **pydantic, pydantic-settings, python-dotenv** — config
-- **pytest, pytest-asyncio** — unit tests
+- **pytest, pytest-asyncio, pyright** — unit tests and type checking
 
 Verify the CLI:
 
@@ -113,9 +114,9 @@ Start the MCP server **before** `langgraph dev`. See [plan/mcp_yarn_tools_spec.m
 
 | Variable | Example | Notes |
 |----------|---------|--------|
-| `STREAMING_APP_INSTANCE_LIMIT` | `3` | Passed into `build_system_prompt()` in `agent_config.py` |
+| `STREAMING_APP_INSTANCE_LIMIT` | `3` | Passed into `get_worker_instructions()` in `agent_config.py` |
 
-Workflow, rules, and output format are defined in code in [`config/agent_config.py`](./config/agent_config.py), not in `.env`.
+Workflow, rules, and output format are defined in [`agents/instructions.py`](./agents/instructions.py), not in `.env`.
 
 ### LiteLLM proxy (use your existing instance)
 
@@ -123,8 +124,8 @@ Workflow, rules, and output format are defined in code in [`config/agent_config.
 |----------|---------|--------|
 | `LITELLM_API_BASE` or `LITELLM_SERVER_URL` | `http://127.0.0.1:4000` | Proxy base URL; `/v1` suffix is optional |
 | `LITELLM_API_KEY` | `sk-...` | Must match what your proxy expects |
-| `LITELLM_MODEL` or `DEFAULT_MODEL` | `gemma4` | Must match the **model alias** in LiteLLM `config.yaml` |
-| `AGENT_TEMPERATURE` | `0` | Chat temperature for the worker loop |
+| `LITELLM_MODEL` | `gemma4` | Must match the **model alias** in LiteLLM `config.yaml` |
+| `LITELLM_TEMPERATURE` | `0` | Chat temperature for the worker loop |
 
 Health check:
 
@@ -208,9 +209,9 @@ from shared_litellm import CustomLiteLLMModel
 s = get_settings()
 m = CustomLiteLLMModel(
     model=s.litellm_model,
-    base_url=s.litellm_api_base,
+    base_url=s.litellm_server_url,
     api_key=s.litellm_api_key,
-    temperature=s.agent_temperature,
+    temperature=s.litellm_temperature,
 )
 print('model:', m.model, 'base:', m.base_url, 'type:', m._llm_type)
 "
@@ -266,7 +267,7 @@ See [plan/mcp_yarn_tools_spec.md](./plan/mcp_yarn_tools_spec.md) for full input/
 
 | Symptom | Likely cause | What to do |
 |---------|----------------|------------|
-| `langgraph: command not found` | venv not active or deps not installed | `source .venv/bin/activate && pip install -r requirements.txt` |
+| `langgraph: command not found` | venv not active or deps not installed | `source .venv/bin/activate && pip install -r requirements-dev.txt` |
 | MCP connection failed at startup | MCP server not running | Start MCP server at `MCP_HOST`:`MCP_PORT` before `langgraph dev` |
 | No tools matched `yarn_streaming` tag | Wrong MCP server or missing tool metadata | Verify MCP tools declare the `yarn_streaming` FastMCP tag; check `mcp_tags` in `agent_config.py` |
 | Proxy 401/403 | Wrong `LITELLM_API_KEY` | Match proxy master key / virtual key |
@@ -279,7 +280,7 @@ See [plan/mcp_yarn_tools_spec.md](./plan/mcp_yarn_tools_spec.md) for full input/
 
 ## 8. Minimal checklist
 
-- [ ] Python 3.11 venv + `pip install -r requirements.txt`
+- [ ] Python 3.11 venv + `pip install -r requirements-dev.txt`
 - [ ] `.env` copied from `.env.example` and filled in
 - [ ] YARN MCP server running at `MCP_HOST`:`MCP_PORT`
 - [ ] LiteLLM proxy up; `curl .../health` OK

@@ -1,52 +1,29 @@
 """Application settings loaded from environment variables."""
 
-from functools import lru_cache
+from agent_util.config import BaseAgentSettings, get_settings as _get_settings
+from pydantic import Field, field_validator
+from pydantic_settings import SettingsConfigDict
 
-from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
+class Settings(BaseAgentSettings):
+    """YARN worker settings extending shared agent-util base."""
 
-class Settings(BaseSettings):
-    """Central configuration for the worker agent."""
+    model_config = SettingsConfigDict(populate_by_name=True)
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        populate_by_name=True,
+    streaming_app_instance_limit: int = Field(
+        default=3,
+        alias="STREAMING_APP_INSTANCE_LIMIT",
     )
 
-    streaming_app_instance_limit: int = 3
-
-    litellm_api_base: str = Field(
-        default="http://localhost:4000",
-        validation_alias=AliasChoices(
-            "litellm_api_base",
-            "LITELLM_API_BASE",
-            "LITELLM_SERVER_URL",
-        ),
-    )
-    litellm_api_key: str = ""
-    litellm_model: str = Field(
-        default="gemini-2.5-flash",
-        validation_alias=AliasChoices(
-            "litellm_model",
-            "LITELLM_MODEL",
-            "DEFAULT_MODEL",
-        ),
-    )
-    agent_temperature: float = 0.0
-
-    @field_validator("litellm_api_base", mode="before")
+    @field_validator("litellm_server_url", mode="before")
     @classmethod
-    def _normalize_litellm_api_base(cls, value: object) -> object:
+    def _normalize_litellm_server_url(cls, value: object) -> object:
         """Accept base URL with or without /v1 (shared_litellm uses .../v1)."""
         if isinstance(value, str):
             return value.rstrip("/").removesuffix("/v1")
         return value
 
 
-@lru_cache
 def get_settings() -> Settings:
     """Return cached settings instance."""
-    return Settings()
+    return _get_settings(Settings)

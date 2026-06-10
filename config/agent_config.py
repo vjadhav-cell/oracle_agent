@@ -9,16 +9,17 @@ from agents.instructions import (
 
 WORKER_NAME = "yarn_worker"
 
-MCP_TOOL_TAGS=["yarn_streaming"]
+MCP_TOOL_TAGS = ["yarn_streaming"]
 
 
 def get_worker_instructions(instance_limit: int = 3) -> str:
     """Assemble the worker system prompt."""
+    fmt = {"instance_limit": instance_limit}
     return "\n\n".join(
         [
-            WORKER_ROLE.format(instance_limit=instance_limit),
-            WORKER_WORKFLOW,
-            WORKER_RULES,
+            WORKER_ROLE.format(**fmt),
+            WORKER_WORKFLOW.format(**fmt),
+            WORKER_RULES.format(**fmt),
             WORKER_OUTPUT,
         ]
     )
@@ -29,6 +30,6 @@ def get_mcp_tags() -> list[str]:
     return MCP_TOOL_TAGS
 
 
-def get_worker_name() -> str :
-    """ Return the name of the worker agent"""
+def get_worker_name() -> str:
+    """Return the name of the worker agent."""
     return WORKER_NAME

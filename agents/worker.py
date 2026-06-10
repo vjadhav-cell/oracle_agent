@@ -13,9 +13,9 @@ def _build_model(settings: Settings) -> CustomLiteLLMModel:
     """Chat model for the worker loop (shared_litellm CustomLiteLLMModel)."""
     return CustomLiteLLMModel(
         model=settings.litellm_model,
-        base_url=settings.litellm_api_base,
+        base_url=settings.litellm_server_url,
         api_key=settings.litellm_api_key,
-        temperature=settings.agent_temperature,
+        temperature=settings.litellm_temperature,
     )
 
 

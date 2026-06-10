@@ -4,7 +4,7 @@ LangGraph **yarn_worker** microservice for **streaming application logs** on Apa
 
 Requires **Python >= 3.11**.
 
-This repo uses a **shared worker template** with yarn-specific config in [`config/agent_config.py`](config/agent_config.py) (`mcp_tags` + system prompt). Common factory code lives in [`agents/worker.py`](agents/worker.py). Each worker type is its own microservice with its own graph id — here, `yarn_worker` (see [`langgraph.json`](langgraph.json)).
+This repo uses a **shared worker template** with yarn-specific config in [`config/agent_config.py`](config/agent_config.py) (`mcp_tags` + `get_worker_instructions()`). Prompt blocks live in [`agents/instructions.py`](agents/instructions.py). Common factory code lives in [`agents/worker.py`](agents/worker.py). Each worker type is its own microservice with its own graph id — here, `yarn_worker` (see [`langgraph.json`](langgraph.json)).
 
 ## How it works
 
@@ -26,10 +26,11 @@ flowchart LR
 
 | File | Role |
 |------|------|
-| [`config/agent_config.py`](config/agent_config.py) | Yarn config — `mcp_tags`, prompt, `build_system_prompt()` |
+| [`config/agent_config.py`](config/agent_config.py) | Yarn config — `mcp_tags`, `get_worker_instructions()` |
+| [`agents/instructions.py`](agents/instructions.py) | Prompt blocks (`WORKER_ROLE`, workflow, rules, output) |
 | [`agents/worker.py`](agents/worker.py) | Common factory — `create_worker_agent()`; name via `get_worker_name()` in [`config/agent_config.py`](config/agent_config.py) |
 | [`agents/graph.py`](agents/graph.py) | LangGraph CLI entrypoint |
-| [`config/settings.py`](config/settings.py) | Runtime settings from `.env` |
+| [`config/settings.py`](config/settings.py) | Runtime settings from `.env` (extends agent-util `BaseAgentSettings`) |
 | [`langgraph.json`](langgraph.json) | Graph id `yarn_worker` |
 
 ## Setup
@@ -37,16 +38,16 @@ flowchart LR
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
 | Variable | Description |
 |----------|-------------|
 | `MCP_HOST` / `MCP_PORT` | YARN MCP server (default `127.0.0.1:8080`) |
-| `STREAMING_APP_INSTANCE_LIMIT` | Default `3` — passed into `build_system_prompt()` |
+| `STREAMING_APP_INSTANCE_LIMIT` | Default `3` — passed into `get_worker_instructions()` |
 | `LITELLM_API_BASE` / `LITELLM_API_KEY` / `LITELLM_MODEL` | LiteLLM proxy |
-| `AGENT_TEMPERATURE` | Chat temperature (default `0`) |
+| `LITELLM_TEMPERATURE` | Chat temperature (default `0.1`) |
 
 Start the MCP server before the agent. See [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) for the full setup guide, or [plan/mcp_yarn_tools_spec.md](plan/mcp_yarn_tools_spec.md) for MCP server details.
 

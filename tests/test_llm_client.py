@@ -12,11 +12,13 @@ from config.settings import Settings
 def test_build_model_uses_custom_litellm() -> None:
     """Worker model is CustomLiteLLMModel configured from Settings."""
     model = _build_model(
-        Settings(
-            litellm_api_base="http://litellm:4000",
-            litellm_api_key="sk-test",
-            litellm_model="gemma4",
-            agent_temperature=0.2,
+        Settings.model_validate(
+            {
+                "LITELLM_SERVER_URL": "http://litellm:4000",
+                "LITELLM_API_KEY": "sk-test",
+                "LITELLM_MODEL": "gemma4",
+                "LITELLM_TEMPERATURE": 0.2,
+            }
         )
     )
 
