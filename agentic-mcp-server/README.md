@@ -56,15 +56,15 @@ The server communicates over stdio, as expected by MCP clients.
 
 ## Cursor MCP configuration example
 
-Use the absolute path to this repository on your machine:
+After installing the project into `.venv`, use the absolute path to that
+environment:
 
 ```json
 {
   "mcpServers": {
     "oracle": {
-      "command": "python",
+      "command": "/absolute/path/to/agentic-mcp-server/.venv/bin/python",
       "args": ["-m", "agentic_oracle_mcp"],
-      "cwd": "/absolute/path/to/agentic-mcp-server",
       "env": {
         "ORACLE_USER": "your_user",
         "ORACLE_PASSWORD": "your_password",
@@ -76,8 +76,7 @@ Use the absolute path to this repository on your machine:
 }
 ```
 
-If your client does not support `cwd`, use the console script from an installed
-environment instead:
+You can also use the console script from the installed environment:
 
 ```json
 {
