@@ -1,0 +1,10 @@
+langgraph-cli[inmem]>=0.2.0
+pydantic>=2.9.0
+pydantic-settings>=2.6.0
+python-dotenv>=1.0.0
+langchain>=1.0.0
+langchain-core>=0.3.0
+langchain-litellm>=0.2.0
+langgraph>=0.2.0
+litellm>=1.50.0
+agent-util @ git+https://${HARNESS_USER}:${HARNESS_PASSWORD}@git.harness.io/XJBvewzZSvi3JavLu6ZTOg/default/Agenticpilot/agent-util.git@v2.0.6#egg=agent-util
