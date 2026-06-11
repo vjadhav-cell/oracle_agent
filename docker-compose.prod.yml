@@ -30,6 +30,14 @@ services:
       - GCP_SA_JSON=${GCP_SA_JSON}
       - GRAFANA_BASE_URL=${GRAFANA_BASE_URL}
       - GRAFANA_API_KEY=${GRAFANA_API_KEY}
+      - ORACLE_ENABLED=${ORACLE_ENABLED:-true}
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+      - QUERY_LIMIT_SIZE=${QUERY_LIMIT_SIZE:-50}
+      - TABLE_WHITE_LIST=${TABLE_WHITE_LIST:-}
+      - COLUMN_WHITE_LIST=${COLUMN_WHITE_LIST:-}
+      - ORACLE_POOL_SIZE=${ORACLE_POOL_SIZE:-5}
+      - ORACLE_MAX_OVERFLOW=${ORACLE_MAX_OVERFLOW:-10}
+      - ORACLE_POOL_RECYCLE=${ORACLE_POOL_RECYCLE:-3600}
       - HEALTHCHECK_FULL=true
     ports:
       - "8080:8080"
@@ -37,7 +45,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/resources/health/check')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/resources/health/check', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3

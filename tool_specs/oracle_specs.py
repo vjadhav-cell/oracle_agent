@@ -67,7 +67,10 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         result_key="rows",
         required=["sql_statement"],
         inputs={
-            "sql_statement": "SQL SELECT query"
+            "sql_statement": "SQL SELECT/WITH query",
+            "bind_params": "object (optional) — named bind parameters",
+            "limit": "number (optional, default QUERY_LIMIT_SIZE, max 1000)",
+            "timeout_ms": "number (optional, 1000-120000)"
         },
     ),
 
@@ -76,6 +79,11 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         "get_tables",
         "Get Oracle tables",
         result_key="tables",
+        inputs={
+            "owner": "string (optional) — Oracle schema owner",
+            "include_views": "boolean (optional, default false)",
+            "limit": "number (optional, default 100, max 1000)"
+        },
     ),
 
     _spec(
@@ -85,7 +93,8 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         result_key="columns",
         required=["table_name"],
         inputs={
-            "table_name": "Oracle table name"
+            "table_name": "Oracle table name",
+            "owner": "string (optional) — Oracle schema owner"
         },
     ),
 
@@ -94,6 +103,29 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         "get_schema",
         "Get complete Oracle schema",
         result_key="schema",
+        inputs={
+            "owner": "string (optional) — Oracle schema owner",
+            "include_views": "boolean (optional, default false)",
+            "table_limit": "number (optional, default 100, max 500)"
+        },
+    ),
+
+    _spec(
+        "oracle.fetchTable",
+        "fetch_table",
+        "Fetch rows from any allowed Oracle table",
+        result_key="data",
+        required=["table_name"],
+        inputs={
+            "table_name": "Oracle table name",
+            "owner": "string (optional) — Oracle schema owner",
+            "columns": "array<string> (optional)",
+            "where": "string (optional) — read-only predicate with bind placeholders",
+            "bind_params": "object (optional) — named bind parameters",
+            "order_by": "array<string> (optional) — columns with optional ASC/DESC",
+            "limit": "number (optional, default QUERY_LIMIT_SIZE, max 1000)",
+            "offset": "number (optional, default 0)"
+        },
     ),
 ]
 

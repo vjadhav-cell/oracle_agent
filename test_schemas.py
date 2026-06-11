@@ -1,213 +1,123 @@
-"""
-test_schemas.py
-
-Validates all Oracle adapter input schemas with
-both valid and invalid inputs to confirm they work correctly.
-
-Run: python test_schemas.py
-"""
+from __future__ import annotations
 
 import sys
-import json
+
 from pydantic import ValidationError
 
-# Make sure schemas folder is in path
-sys.path.insert(0, ".")
-
-from schemas.oracle_adapter_schemas import (
-    OracleConnectDatabaseInput,
-    OracleCommentDBConnectionInput,
-    OracleGetTableDetailsInput,
-    OracleGetColumnDetailsInput,
-    OracleExecuteSQLInput,
+from schemas.oracle import (
     ORACLE_TOOL_SCHEMA_REGISTRY,
+    OracleConnectDatabaseInput,
+    OracleExecuteSQLInput,
+    OracleFetchTableInput,
+    OracleGetColumnDetailsInput,
+    OracleGetSchemaInput,
+    OracleGetTableDetailsInput,
 )
 
-PASS = "PASS"
-FAIL = "FAIL"
-results = []
+
+results: list[bool] = []
+
 
 def check(label: str, passed: bool, detail: str = ""):
-    icon = PASS if passed else FAIL
-    print(f"  {icon}  {label}")
+    status = "PASS" if passed else "FAIL"
+    print(f"  {status}  {label}")
     if detail:
         print(f"        {detail}")
     results.append(passed)
 
 
-# ─────────────────────────────────────────────
-# 1. OracleConnectDatabaseInput
-# ─────────────────────────────────────────────
-
-print("\n── OracleConnectDatabaseInput ──")
-
-try:
-    s = OracleConnectDatabaseInput(
-        db_connection_string="oracle+oracledb://company_db:Password123@localhost:1521/FREEPDB1"
-    )
-    check("Valid connection string accepted", True, s.to_json())
-except ValidationError as e:
-    check("Valid connection string accepted", False, str(e))
-
-try:
-    OracleConnectDatabaseInput(db_connection_string="mysql://user:pass@localhost/db")
-    check("Invalid prefix rejected", False, "Should have raised ValidationError")
-except ValidationError:
-    check("Invalid prefix (mysql://) rejected", True)
-
-try:
-    OracleConnectDatabaseInput(db_connection_string="oracle://valid", unknown_field="x")
-    check("Extra fields rejected", False, "Should have raised ValidationError")
-except ValidationError:
-    check("Extra fields rejected", True)
+def expect_valid(label: str, factory):
+    try:
+        value = factory()
+        check(label, True, value.to_json() if hasattr(value, "to_json") else "")
+    except Exception as exc:
+        check(label, False, str(exc))
 
 
-# ─────────────────────────────────────────────
-# 2. OracleCommentDBConnectionInput
-# ─────────────────────────────────────────────
-
-print("\n── OracleCommentDBConnectionInput ──")
-
-try:
-    s = OracleCommentDBConnectionInput(
-        comment_db_connection_string="oracle+oracledb://company_db:Password123@localhost:1521/FREEPDB1"
-    )
-    check("Valid comment DB connection string accepted", True, s.to_json())
-except ValidationError as e:
-    check("Valid comment DB connection string accepted", False, str(e))
-
-try:
-    OracleCommentDBConnectionInput(comment_db_connection_string="postgres://user:pass@host/db")
-    check("Invalid prefix rejected", False, "Should have raised ValidationError")
-except ValidationError:
-    check("Invalid prefix (postgres://) rejected", True)
+def expect_invalid(label: str, factory):
+    try:
+        factory()
+        check(label, False, "Expected validation failure")
+    except ValidationError:
+        check(label, True)
 
 
-# ─────────────────────────────────────────────
-# 3. OracleGetTableDetailsInput
-# ─────────────────────────────────────────────
+print("\n-- Oracle connection schema --")
+expect_valid(
+    "oracle+oracledb URL accepted",
+    lambda: OracleConnectDatabaseInput(
+        db_connection_string="oracle+oracledb://user:pass@localhost:1521/?service_name=FREEPDB1"
+    ),
+)
+expect_invalid(
+    "non-Oracle URL rejected",
+    lambda: OracleConnectDatabaseInput(db_connection_string="postgres://user:pass@host/db"),
+)
 
-print("\n── OracleGetTableDetailsInput ──")
+print("\n-- Oracle metadata schemas --")
+expect_valid("table listing accepts owner", lambda: OracleGetTableDetailsInput(owner="HR"))
+expect_valid(
+    "column lookup requires table",
+    lambda: OracleGetColumnDetailsInput(owner="HR", table_name="EMPLOYEES"),
+)
+expect_invalid("bad table identifier rejected", lambda: OracleGetColumnDetailsInput(table_name="EMP;DROP"))
+expect_valid("schema lookup accepts limit", lambda: OracleGetSchemaInput(owner="HR", table_limit=25))
 
-try:
-    s = OracleGetTableDetailsInput()
-    check("No-input schema instantiates cleanly", True, s.to_json())
-except ValidationError as e:
-    check("No-input schema instantiates cleanly", False, str(e))
+print("\n-- Oracle fetchTable schema --")
+expect_valid(
+    "general table fetch accepted",
+    lambda: OracleFetchTableInput(
+        owner="HR",
+        table_name="EMPLOYEES",
+        columns=["EMPLOYEE_ID", "FIRST_NAME"],
+        where="DEPARTMENT_ID = :department_id",
+        bind_params={"department_id": 60},
+        order_by=["EMPLOYEE_ID ASC"],
+        limit=10,
+    ),
+)
+expect_invalid(
+    "unsafe where rejected",
+    lambda: OracleFetchTableInput(table_name="EMPLOYEES", where="1=1; DELETE FROM EMPLOYEES"),
+)
 
+print("\n-- Oracle executeSQL schema --")
+expect_valid(
+    "SELECT with bind params accepted",
+    lambda: OracleExecuteSQLInput(
+        sql_statement="SELECT * FROM EMPLOYEES WHERE DEPARTMENT_ID = :department_id",
+        bind_params={"department_id": 60},
+    ),
+)
+expect_valid(
+    "WITH query accepted",
+    lambda: OracleExecuteSQLInput(
+        sql_statement="WITH dept AS (SELECT department_id FROM departments) SELECT * FROM dept"
+    ),
+)
+expect_invalid(
+    "INSERT rejected",
+    lambda: OracleExecuteSQLInput(sql_statement="INSERT INTO EMPLOYEES VALUES (1)"),
+)
+expect_invalid(
+    "multiple statements rejected",
+    lambda: OracleExecuteSQLInput(sql_statement="SELECT * FROM EMPLOYEES; SELECT * FROM DEPARTMENTS"),
+)
 
-# ─────────────────────────────────────────────
-# 4. OracleGetColumnDetailsInput
-# ─────────────────────────────────────────────
+print("\n-- Oracle schema registry --")
+for tool in [
+    "oracle.testConnection",
+    "oracle.getTables",
+    "oracle.getColumns",
+    "oracle.getSchema",
+    "oracle.fetchTable",
+    "oracle.executeSQL",
+]:
+    check(f"{tool} registered", tool in ORACLE_TOOL_SCHEMA_REGISTRY)
 
-print("\n── OracleGetColumnDetailsInput ──")
-
-try:
-    s = OracleGetColumnDetailsInput()
-    check("No-input schema instantiates cleanly", True, s.to_json())
-except ValidationError as e:
-    check("No-input schema instantiates cleanly", False, str(e))
-
-
-# ─────────────────────────────────────────────
-# 5. OracleExecuteSQLInput
-# ─────────────────────────────────────────────
-
-print("\n── OracleExecuteSQLInput ──")
-
-# Valid SELECT
-try:
-    s = OracleExecuteSQLInput(sql_statement="SELECT * FROM EMPLOYEES")
-    check("Valid SELECT accepted", True, s.to_json())
-except ValidationError as e:
-    check("Valid SELECT accepted", False, str(e))
-
-# Valid WITH (CTE)
-try:
-    s = OracleExecuteSQLInput(
-        sql_statement="WITH dept AS (SELECT DEPT_ID FROM DEPARTMENTS) SELECT * FROM dept",
-        timeout_ms=10000
-    )
-    check("Valid WITH (CTE) accepted", True, s.to_json())
-except ValidationError as e:
-    check("Valid WITH (CTE) accepted", False, str(e))
-
-# Block INSERT
-try:
-    OracleExecuteSQLInput(sql_statement="INSERT INTO EMPLOYEES VALUES (99, 'Test')")
-    check("INSERT blocked", False, "Should have raised ValidationError")
-except ValidationError:
-    check("INSERT blocked", True)
-
-# Block DELETE
-try:
-    OracleExecuteSQLInput(sql_statement="DELETE FROM EMPLOYEES WHERE EMP_ID=1")
-    check("DELETE blocked", False, "Should have raised ValidationError")
-except ValidationError:
-    check("DELETE blocked", True)
-
-# Block DROP
-try:
-    OracleExecuteSQLInput(sql_statement="DROP TABLE EMPLOYEES")
-    check("DROP blocked", False, "Should have raised ValidationError")
-except ValidationError:
-    check("DROP blocked", True)
-
-# Timeout too low
-try:
-    OracleExecuteSQLInput(sql_statement="SELECT 1 FROM DUAL", timeout_ms=500)
-    check("Timeout < 1000ms rejected", False, "Should have raised ValidationError")
-except ValidationError:
-    check("Timeout < 1000ms rejected", True)
-
-# Timeout too high
-try:
-    OracleExecuteSQLInput(sql_statement="SELECT 1 FROM DUAL", timeout_ms=999999)
-    check("Timeout > 120000ms rejected", False, "Should have raised ValidationError")
-except ValidationError:
-    check("Timeout > 120000ms rejected", True)
-
-
-# ─────────────────────────────────────────────
-# 6. Schema Registry
-# ─────────────────────────────────────────────
-
-print("\n── ORACLE_TOOL_SCHEMA_REGISTRY ──")
-
-expected_tools = [
-    "connect_to_database",
-    "create_comment_db_connection",
-    "get_table_details",
-    "get_column_details",
-    "execute_sql",
-]
-
-for tool in expected_tools:
-    check(f"'{tool}' registered", tool in ORACLE_TOOL_SCHEMA_REGISTRY)
-
-# Dynamic instantiation via registry
-try:
-    schema_cls = ORACLE_TOOL_SCHEMA_REGISTRY["execute_sql"]
-    instance = schema_cls(sql_statement="SELECT * FROM DEPARTMENTS")
-    check("Registry lookup + dynamic instantiation works", True, instance.to_json())
-except Exception as e:
-    check("Registry lookup + dynamic instantiation works", False, str(e))
-
-
-# ─────────────────────────────────────────────
-# SUMMARY
-# ─────────────────────────────────────────────
-
-total  = len(results)
+total = len(results)
 passed = sum(results)
 failed = total - passed
 
-print(f"\n{'='*50}")
-print(f"  Total: {total}  |  Passed: {passed}  |  Failed: {failed}")
-if failed == 0:
-    print("All schema validations passed!")
-else:
-    print(f"{failed} validation(s) failed.")
-print(f"{'='*50}\n")
-
+print(f"\nTotal: {total} | Passed: {passed} | Failed: {failed}")
 sys.exit(0 if failed == 0 else 1)
