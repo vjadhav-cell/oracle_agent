@@ -1,0 +1,16 @@
+fastmcp>=2.12.3
+pydantic>=2.11
+pydantic-settings==2.10.1
+httpx>=0.24.0
+redis>=4.6.0
+tenacity>=8.2.2
+python-dotenv>=1.0.0
+uvicorn>=0.21.1
+google-api-python-client>=2.80.0
+google-auth>=2.20.0
+google-cloud-logging>=3.4.0
+prometheus-api-client>=0.5.3
+pre-commit==3.7.0
+kubernetes>=28.1.0
+SQLAlchemy>=2.0.25,<3.0
+oracledb>=2.2.0,<3.0

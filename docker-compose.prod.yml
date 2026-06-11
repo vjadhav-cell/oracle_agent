@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mcp-network
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      - MCP_TRANSPORT=http
+      - PORT=8080
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
+      - MCP_API_KEY=${MCP_API_KEY}
+      - JIRA_BASE=${JIRA_BASE}
+      - JIRA_EMAIL=${JIRA_EMAIL}
+      - JIRA_API_TOKEN=${JIRA_API_TOKEN}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - GCP_SA_JSON=${GCP_SA_JSON}
+      - GRAFANA_BASE_URL=${GRAFANA_BASE_URL}
+      - GRAFANA_API_KEY=${GRAFANA_API_KEY}
+      - HEALTHCHECK_FULL=true
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/resources/health/check')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mcp-network
+
+volumes:
+  redis_data:
+
+networks:
+  mcp-network:
+    driver: bridge
