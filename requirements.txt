@@ -7,4 +7,4 @@ langchain-core>=0.3.0
 langchain-litellm>=0.2.0
 langgraph>=0.2.0
 litellm>=1.50.0
-agent-util @ file:///home/arab/Projects/softility/agent-util
+agent-util @ git+https://${HARNESS_USER}:${HARNESS_PASSWORD}@git.harness.io/XJBvewzZSvi3JavLu6ZTOg/default/Agenticpilot/agent-util.git@v2.0.6#egg=agent-util
