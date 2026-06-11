@@ -1,8 +1,12 @@
 # manifest.py
 from typing import Any, Dict
 
-from tool_specs.k8s import K8S_TOOL_SPECS
 from tool_specs.oracle_specs import ORACLE_TOOL_SPECS
+
+try:
+    from tool_specs.k8s import K8S_TOOL_SPECS
+except ModuleNotFoundError:
+    K8S_TOOL_SPECS = []
 
 
 def build_manifest(enabled_tools: Dict[str, bool]) -> Dict[str, Any]:
@@ -29,50 +33,14 @@ def build_manifest(enabled_tools: Dict[str, bool]) -> Dict[str, Any]:
         }
     }
 
-    # ✅ Oracle tools — ADD THIS BLOCK
     if enabled_tools.get("oracle"):
-        tools["oracle_test_connection"] = {
-            "name": "oracle_test_connection",
-            "description": "Test Oracle database connection (uses DB_CONNECTION_STRING from .env)",
-            "http": {"path": "/tools/oracle/test-connection", "method": "POST"},
-            "inputs": {}
-        }
-        tools["oracle_get_tables"] = {
-            "name": "oracle_get_tables",
-            "description": "List all tables in the Oracle database",
-            "http": {"path": "/tools/oracle/get-tables", "method": "POST"},
-            "inputs": {}
-        }
-        tools["oracle_get_columns"] = {
-            "name": "oracle_get_columns",
-            "description": "Get columns for a specific Oracle table",
-            "http": {"path": "/tools/oracle/get-columns", "method": "POST"},
-            "inputs": {
-                "table_name": "string (required) — name of the table"
+        for spec in ORACLE_TOOL_SPECS:
+            tools[spec["tool"]] = {
+                "name": spec["tool"],
+                "description": spec["description"],
+                "http": {"path": spec["http_path"], "method": "POST"},
+                "inputs": spec["inputs"],
             }
-        }
-        tools["oracle_get_schema"] = {
-            "name": "oracle_get_schema",
-            "description": "Get full schema of all Oracle tables with column details",
-            "http": {"path": "/tools/oracle/get-schema", "method": "POST"},
-            "inputs": {}
-        }
-        tools["execute_sql"] = {
-            "name": "execute_sql",
-            "description": "Execute any SQL statement against Oracle database",
-            "http": {"path": "/tools/oracle/execute-sql", "method": "POST"},
-            "inputs": {
-                "sql_statement": "string (required) — SQL query to execute"
-            }
-        }
-        tools["connect_to_database"] = {
-            "name": "connect_to_database",
-            "description": "Connect to Oracle database and verify the connection",
-            "http": {"path": "/tools/oracle/connect", "method": "POST"},
-            "inputs": {
-                "connection_string": "string (optional) — overrides DB_CONNECTION_STRING from .env"
-            }
-        }
 
     # Jira
     if enabled_tools.get("jira"):
@@ -322,7 +290,7 @@ def build_manifest(enabled_tools: Dict[str, bool]) -> Dict[str, Any]:
     return {
         "name": "unified-mcp-server",
         "version": "1.0.0",
-        "description": "Unified MCP server with Oracle, GCP, Grafana, OpenSearch, Mimir, K8s, Prometheus tools.",
+        "description": "MCP server with safe read-only Oracle database tools.",
         "auth": auth_info,
         "tools": tools,
     }

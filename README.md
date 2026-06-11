@@ -1,17 +1,16 @@
-# Unified MCP Server
+# Oracle MCP Server
 
-A comprehensive Model Context Protocol (MCP) server that provides unified access to multiple infrastructure and observability tools including Kubernetes, GCP, Grafana, Prometheus, Mimir, OpenSearch, Jira, and Slack.
+A Model Context Protocol (MCP) server that exposes safe, read-oriented Oracle database tools for connection testing, schema discovery, table metadata, table row fetching, and read-only SQL execution.
 
 ## Features
 
-- **Multi-Provider Support**: Integrates with Kubernetes, GCP, Grafana, Prometheus, Mimir, OpenSearch, Jira, and Slack
+- **Oracle Database Support**: Fetch data from Oracle tables through MCP tools
 - **HTTP/REST API**: Stateless HTTP transport for easy integration
 - **Rate Limiting**: Built-in Redis-based rate limiting (optional)
 - **Idempotency**: Request idempotency support via Redis (optional)
 - **Health Checks**: Comprehensive health check endpoints
 - **Tool Discovery**: Manifest endpoint to discover all available tools
-- **Kubernetes**: Extensive read-only Kubernetes operations (34+ tools)
-- **Observability**: Query logs, metrics, and traces from multiple sources
+- **Read-Only Guardrails**: Allows only table fetches and read-only `SELECT`/`WITH` SQL
 
 ## Table of Contents
 
@@ -81,6 +80,27 @@ RATE_LIMIT_FAIL_OPEN=true
 ```
 
 ### Provider Credentials
+
+#### Oracle
+```env
+ORACLE_ENABLED=true
+DB_CONNECTION_STRING=oracle+oracledb://user:password@host:1521/?service_name=ORCLPDB1
+QUERY_LIMIT_SIZE=50
+
+# Optional comma-separated access controls.
+# TABLE_WHITE_LIST can contain TABLE_NAME or OWNER.TABLE_NAME entries.
+TABLE_WHITE_LIST=EMPLOYEES,HR.DEPARTMENTS
+
+# COLUMN_WHITE_LIST can contain COLUMN_NAME or OWNER.TABLE_NAME.COLUMN_NAME entries.
+COLUMN_WHITE_LIST=EMPLOYEE_ID,FIRST_NAME,LAST_NAME,HR.DEPARTMENTS.DEPARTMENT_NAME
+
+# Optional SQLAlchemy pool settings.
+ORACLE_POOL_SIZE=5
+ORACLE_MAX_OVERFLOW=10
+ORACLE_POOL_RECYCLE=3600
+```
+
+The server uses the `oracledb` Python driver in thin mode by default. If your environment requires Oracle Instant Client / thick mode, add the Instant Client libraries to the container image and configure the driver before creating connections.
 
 #### Jira
 ```env
@@ -293,6 +313,71 @@ curl -X POST http://localhost:8080/tools/test/echo \
   -d '{
     "arguments": {
       "message": "Hello from MCP!"
+    }
+  }'
+```
+
+### Oracle Tools
+
+```bash
+# Test Oracle connectivity
+curl -X POST http://localhost:8080/tools/oracle/test-connection \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"arguments": {}}'
+
+# List tables in the current schema
+curl -X POST http://localhost:8080/tools/oracle/get-tables \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "arguments": {
+      "include_views": false,
+      "limit": 100
+    }
+  }'
+
+# Get columns for a table
+curl -X POST http://localhost:8080/tools/oracle/get-columns \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "arguments": {
+      "owner": "HR",
+      "table_name": "EMPLOYEES"
+    }
+  }'
+
+# Fetch rows from any allowed table
+curl -X POST http://localhost:8080/tools/oracle/fetch-table \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "arguments": {
+      "owner": "HR",
+      "table_name": "EMPLOYEES",
+      "columns": ["EMPLOYEE_ID", "FIRST_NAME", "LAST_NAME"],
+      "where": "DEPARTMENT_ID = :department_id",
+      "bind_params": {
+        "department_id": 60
+      },
+      "order_by": ["EMPLOYEE_ID ASC"],
+      "limit": 25,
+      "offset": 0
+    }
+  }'
+
+# Execute read-only SQL
+curl -X POST http://localhost:8080/tools/oracle/execute-sql \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "arguments": {
+      "sql_statement": "SELECT employee_id, first_name FROM hr.employees WHERE department_id = :department_id",
+      "bind_params": {
+        "department_id": 60
+      },
+      "limit": 25
     }
   }'
 ```
@@ -1141,6 +1226,14 @@ The build context must be `agentic-mcp-server/.` (not `unified-mcp/.`).
 
 ### Test Tools
 - `test.echo` - Simple test tool
+
+### Oracle Tools
+- `oracle.testConnection` - Test Oracle database connectivity
+- `oracle.getTables` - List tables and optionally views
+- `oracle.getColumns` - Get column metadata for a table
+- `oracle.getSchema` - Get schema metadata for tables/views
+- `oracle.fetchTable` - Fetch rows from any allowed table with columns, filters, order, limit, and offset
+- `oracle.executeSQL` - Execute read-only `SELECT`/`WITH` SQL with bind parameters
 
 ### Jira Tools
 - `jira.createIssue` - Create a Jira issue

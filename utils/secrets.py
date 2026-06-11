@@ -99,7 +99,7 @@ def get_tempo_credentials(data: TenantInput) -> Optional[Dict[str, str]]:
     return None
 
 def get_oracle_credentials(data=None):
-    connection_string = os.getenv("DB_CONNECTION_STRING")
+    connection_string = settings.DB_CONNECTION_STRING
 
     if not connection_string:
         return None

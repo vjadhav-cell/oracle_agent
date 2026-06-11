@@ -1,3 +1,3 @@
-from .config import settings
+"""Shared utility package."""
 
-__all__ = ["settings"]
+__all__: list[str] = []

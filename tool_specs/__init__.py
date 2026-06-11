@@ -1,4 +1,4 @@
-"""Tool specification registries shared between main + manifest."""
+"""Tool specification registries shared between main and manifest."""
 
-from .metadata import TOOL_METADATA  # noqa: F401
+__all__: list[str] = []
 

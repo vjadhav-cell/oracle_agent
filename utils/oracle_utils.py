@@ -1,6 +1,9 @@
 import sys
 import logging
 from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
+
+from utils.errors import ProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +28,7 @@ def setup_logging(debug=False)  -> logging.Logger:
         handler.setFormatter(formatter)
         handlers.append(handler)
     except Exception as e:
-        logger.error(f"Failed to create stdout log handler: {e}", file=sys.stderr)
+        print(f"Failed to create stdout log handler: {e}", file=sys.stderr)
 
     # Add the handlers to the logger
     for handler in handlers:
@@ -48,6 +51,6 @@ def create_db_connection(connection_string: str) -> object:
         connection = engine.connect()
         logger.debug("Connected to oracle database successfully")
         return connection
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error(f"Failed to create oracle database connection: {e}")
-        sys.exit(1)
+        raise ProviderError("oracle", str(e)) from e
