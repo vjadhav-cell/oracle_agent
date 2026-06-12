@@ -12,8 +12,12 @@ from fastmcp import FastMCP
 from adapters.oracle import OracleAdapter
 from schemas.oracle import (
     OracleExecuteSQLInput,
-    OracleGetTableDetailsInput,
     OracleGetColumnDetailsInput,
+    OracleExecuteSQLQueryWithFiltersInput,
+    OracleFetchTableInput,
+    OracleGetSchemaInput,
+    OracleGetTableDetailsInput,
+    OracleTestConnectionInput,
 )
 
 oracle_adapter = OracleAdapter() 
@@ -226,7 +230,8 @@ def manifest_resource():
         "mimir": bool(settings.MIMIR_URL),
         "k8s": bool(settings.K8S_ENABLED),
         "prometheus": bool(settings.PROMETHEUS_ENDPOINT),
-        "tempo": bool(settings.TEMPO_URL)
+        "tempo": bool(settings.TEMPO_URL),
+        "oracle": oracle_adapter.enabled,
     }
     return build_manifest(enabled)
 
@@ -317,6 +322,151 @@ def register_tools():
             "auth_note": "Authentication temporarily disabled for stateless mode testing"
         }
     mcp.tool(name="test.echo")(test_tool)
+
+    def oracle_params(arguments: dict | None, direct_values: dict) -> dict:
+        params = {key: value for key, value in direct_values.items() if value is not None}
+        if arguments:
+            params.update({key: value for key, value in arguments.items() if value is not None})
+        return params
+
+    async def oracle_test_connection(arguments: dict | None = None):
+        """Test the Oracle database connection."""
+        result = await oracle_adapter.test_connection(
+            OracleTestConnectionInput.model_validate(arguments or {})
+        )
+        return {"ok": True, "result": result}
+
+    mcp.tool(name="oracle.testConnection", tags=["oracle"])(oracle_test_connection)
+
+    async def oracle_get_tables(
+        owner: str | None = None,
+        include_views: bool = False,
+        limit: int = 100,
+        arguments: dict | None = None,
+    ):
+        """List Oracle tables, optionally for one owner/schema."""
+        data = OracleGetTableDetailsInput.model_validate(
+            oracle_params(
+                arguments,
+                {"owner": owner, "include_views": include_views, "limit": limit},
+            )
+        )
+        return {"ok": True, "tables": await oracle_adapter.get_tables(data)}
+
+    mcp.tool(name="oracle.getTables", tags=["oracle"])(oracle_get_tables)
+
+    async def oracle_get_columns(
+        table_name: str | None = None,
+        owner: str | None = None,
+        arguments: dict | None = None,
+    ):
+        """Get columns for an Oracle table."""
+        data = OracleGetColumnDetailsInput.model_validate(
+            oracle_params(arguments, {"table_name": table_name, "owner": owner})
+        )
+        return {"ok": True, "columns": await oracle_adapter.get_columns(data)}
+
+    mcp.tool(name="oracle.getColumns", tags=["oracle"])(oracle_get_columns)
+
+    async def oracle_get_schema(
+        owner: str | None = None,
+        include_views: bool = False,
+        table_limit: int = 100,
+        arguments: dict | None = None,
+    ):
+        """Get table and column metadata for an Oracle schema."""
+        data = OracleGetSchemaInput.model_validate(
+            oracle_params(
+                arguments,
+                {"owner": owner, "include_views": include_views, "table_limit": table_limit},
+            )
+        )
+        return {"ok": True, "schema": await oracle_adapter.get_schema(data)}
+
+    mcp.tool(name="oracle.getSchema", tags=["oracle"])(oracle_get_schema)
+
+    async def oracle_fetch_table(
+        table_name: str | None = None,
+        owner: str | None = None,
+        columns: list[str] | None = None,
+        where: str | None = None,
+        bind_params: dict | None = None,
+        order_by: list[str] | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+        arguments: dict | None = None,
+    ):
+        """Fetch rows from a table with optional columns, where, order, and pagination."""
+        data = OracleFetchTableInput.model_validate(
+            oracle_params(
+                arguments,
+                {
+                    "table_name": table_name,
+                    "owner": owner,
+                    "columns": columns,
+                    "where": where,
+                    "bind_params": bind_params,
+                    "order_by": order_by,
+                    "limit": limit,
+                    "offset": offset,
+                },
+            )
+        )
+        return {"ok": True, "result": await oracle_adapter.fetch_table(data)}
+
+    mcp.tool(name="oracle.fetchTable", tags=["oracle"])(oracle_fetch_table)
+
+    async def oracle_execute_sql(
+        sql_statement: str | None = None,
+        bind_params: dict | None = None,
+        limit: int | None = None,
+        timeout_ms: int = 30000,
+        arguments: dict | None = None,
+    ):
+        """Execute a read-only SELECT/WITH SQL query."""
+        data = OracleExecuteSQLInput.model_validate(
+            oracle_params(
+                arguments,
+                {
+                    "sql_statement": sql_statement,
+                    "bind_params": bind_params,
+                    "limit": limit,
+                    "timeout_ms": timeout_ms,
+                },
+            )
+        )
+        return {"ok": True, "rows": await oracle_adapter.execute_query(data)}
+
+    mcp.tool(name="oracle.executeSQL", tags=["oracle"])(oracle_execute_sql)
+
+    async def oracle_execute_sql_query_with_filters(
+        sql_statement: str | None = None,
+        filters: dict | None = None,
+        bind_params: dict | None = None,
+        order_by: list[str] | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+        timeout_ms: int = 30000,
+        arguments: dict | None = None,
+    ):
+        """Execute read-only SQL and apply simple equality filters from JSON."""
+        data = OracleExecuteSQLQueryWithFiltersInput.model_validate(
+            oracle_params(
+                arguments,
+                {
+                    "sql_statement": sql_statement,
+                    "filters": filters,
+                    "bind_params": bind_params,
+                    "order_by": order_by,
+                    "limit": limit,
+                    "offset": offset,
+                    "timeout_ms": timeout_ms,
+                },
+            )
+        )
+        return {"ok": True, "rows": await oracle_adapter.execute_sql_query_with_filters(data)}
+
+    mcp.tool(name="oracle.executeSQLQueryWithFilters", tags=["oracle"])(oracle_execute_sql_query_with_filters)
 
     # Jira
     if settings.JIRA_API_TOKEN and settings.JIRA_EMAIL and settings.JIRA_BASE:
@@ -1847,41 +1997,6 @@ async def cleanup():
     except Exception:
         logger.exception("cleanup: rate limiter close error")
 
-
-    def register_tools():
-        @mcp.tool()
-        async def connect_to_database(connection_string: str):
-            """Connect to Oracle database and verify connection."""
-            return await oracle_adapter.connect_to_database(connection_string)
-        
-        @mcp.tool()
-        async def execute_sql(sql_statement: str):
-            """Execute any SQL statement against Oracle database."""
-            return await oracle_adapter.execute_sql(sql_statement)
-        
-        @mcp.tool()
-        async def oracle_test_connection():
-            """Test Oracle database connection."""
-            return await oracle_adapter.test_connection()
-        
-        @mcp.tool()
-        async def oracle_get_tables():
-            """Get all tables in the Oracle database."""
-            return await oracle_adapter.get_tables()
-        
-        @mcp.tool()
-        async def oracle_get_columns(table_name: str):
-            """Get columns for a specific Oracle table."""
-            return await oracle_adapter.get_columns(
-                OracleGetColumnDetailsInput(table_name=table_name)
-                )
-            
-        @mcp.tool()
-        async def oracle_get_schema():
-            """Get full schema of all Oracle tables."""
-            return await oracle_adapter.get_schema()
-
-    
 
 if __name__ == "__main__":
     import asyncio

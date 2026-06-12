@@ -14,12 +14,13 @@ from pydantic import ValidationError
 # Make sure schemas folder is in path
 sys.path.insert(0, ".")
 
-from schemas.oracle_adapter_schemas import (
+from schemas.oracle import (
     OracleConnectDatabaseInput,
     OracleCommentDBConnectionInput,
     OracleGetTableDetailsInput,
     OracleGetColumnDetailsInput,
     OracleExecuteSQLInput,
+    OracleExecuteSQLQueryWithFiltersInput,
     ORACLE_TOOL_SCHEMA_REGISTRY,
 )
 
@@ -103,10 +104,10 @@ except ValidationError as e:
 print("\n── OracleGetColumnDetailsInput ──")
 
 try:
-    s = OracleGetColumnDetailsInput()
-    check("No-input schema instantiates cleanly", True, s.to_json())
+    s = OracleGetColumnDetailsInput(table_name="EMPLOYEES")
+    check("Table name schema instantiates cleanly", True, s.to_json())
 except ValidationError as e:
-    check("No-input schema instantiates cleanly", False, str(e))
+    check("Table name schema instantiates cleanly", False, str(e))
 
 
 # ─────────────────────────────────────────────
@@ -167,6 +168,17 @@ try:
 except ValidationError:
     check("Timeout > 120000ms rejected", True)
 
+try:
+    s = OracleExecuteSQLQueryWithFiltersInput(
+        sql_statement="SELECT EMPLOYEE_ID, DEPARTMENT_ID FROM EMPLOYEES",
+        filters={"DEPARTMENT_ID": 50},
+        order_by=["EMPLOYEE_ID"],
+        limit=10,
+    )
+    check("Filtered SQL schema accepted", True, s.to_json())
+except ValidationError as e:
+    check("Filtered SQL schema accepted", False, str(e))
+
 
 # ─────────────────────────────────────────────
 # 6. Schema Registry
@@ -179,7 +191,10 @@ expected_tools = [
     "create_comment_db_connection",
     "get_table_details",
     "get_column_details",
+    "get_schema",
+    "fetch_table",
     "execute_sql",
+    "execute_sql_query_with_filters",
 ]
 
 for tool in expected_tools:

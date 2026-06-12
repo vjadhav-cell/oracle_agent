@@ -67,7 +67,25 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         result_key="rows",
         required=["sql_statement"],
         inputs={
-            "sql_statement": "SQL SELECT query"
+            "sql_statement": "SQL SELECT/WITH query",
+            "bind_params": "optional object of SQL bind parameters",
+            "limit": "optional maximum rows to return",
+        },
+    ),
+
+    _spec(
+        "oracle.executeSQLQueryWithFilters",
+        "execute_sql_query_with_filters",
+        "Execute read-only SQL query with simple equality filters",
+        result_key="rows",
+        required=["sql_statement"],
+        inputs={
+            "sql_statement": "SQL SELECT/WITH query used as the base result set",
+            "filters": "optional object of column-to-value equality filters",
+            "bind_params": "optional object of SQL bind parameters",
+            "order_by": "optional list of columns to order by",
+            "limit": "optional maximum rows to return",
+            "offset": "optional rows to skip",
         },
     ),
 
@@ -85,7 +103,8 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         result_key="columns",
         required=["table_name"],
         inputs={
-            "table_name": "Oracle table name"
+            "table_name": "Oracle table name",
+            "owner": "optional schema/user name",
         },
     ),
 
@@ -94,6 +113,29 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         "get_schema",
         "Get complete Oracle schema",
         result_key="schema",
+        inputs={
+            "owner": "optional schema/user name",
+            "include_views": "optional boolean",
+            "table_limit": "optional table limit",
+        },
+    ),
+
+    _spec(
+        "oracle.fetchTable",
+        "fetch_table",
+        "Fetch rows from an Oracle table",
+        result_key="result",
+        required=["table_name"],
+        inputs={
+            "table_name": "Oracle table name",
+            "owner": "optional schema/user name",
+            "columns": "optional list of columns",
+            "where": "optional WHERE clause without the WHERE keyword",
+            "bind_params": "optional object of bind parameters for where",
+            "order_by": "optional list of columns to order by",
+            "limit": "optional maximum rows to return",
+            "offset": "optional rows to skip",
+        },
     ),
 ]
 

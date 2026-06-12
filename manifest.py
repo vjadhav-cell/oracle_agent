@@ -29,48 +29,78 @@ def build_manifest(enabled_tools: Dict[str, bool]) -> Dict[str, Any]:
         }
     }
 
-    # ✅ Oracle tools — ADD THIS BLOCK
     if enabled_tools.get("oracle"):
-        tools["oracle_test_connection"] = {
-            "name": "oracle_test_connection",
+        tools["oracle.testConnection"] = {
+            "name": "oracle.testConnection",
             "description": "Test Oracle database connection (uses DB_CONNECTION_STRING from .env)",
             "http": {"path": "/tools/oracle/test-connection", "method": "POST"},
             "inputs": {}
         }
-        tools["oracle_get_tables"] = {
-            "name": "oracle_get_tables",
+        tools["oracle.getTables"] = {
+            "name": "oracle.getTables",
             "description": "List all tables in the Oracle database",
             "http": {"path": "/tools/oracle/get-tables", "method": "POST"},
-            "inputs": {}
+            "inputs": {
+                "owner": "string (optional) — schema/user name",
+                "include_views": "boolean (optional)",
+                "limit": "number (optional)"
+            }
         }
-        tools["oracle_get_columns"] = {
-            "name": "oracle_get_columns",
+        tools["oracle.getColumns"] = {
+            "name": "oracle.getColumns",
             "description": "Get columns for a specific Oracle table",
             "http": {"path": "/tools/oracle/get-columns", "method": "POST"},
             "inputs": {
-                "table_name": "string (required) — name of the table"
+                "table_name": "string (required) — name of the table",
+                "owner": "string (optional) — schema/user name"
             }
         }
-        tools["oracle_get_schema"] = {
-            "name": "oracle_get_schema",
+        tools["oracle.getSchema"] = {
+            "name": "oracle.getSchema",
             "description": "Get full schema of all Oracle tables with column details",
             "http": {"path": "/tools/oracle/get-schema", "method": "POST"},
-            "inputs": {}
-        }
-        tools["execute_sql"] = {
-            "name": "execute_sql",
-            "description": "Execute any SQL statement against Oracle database",
-            "http": {"path": "/tools/oracle/execute-sql", "method": "POST"},
             "inputs": {
-                "sql_statement": "string (required) — SQL query to execute"
+                "owner": "string (optional) — schema/user name",
+                "include_views": "boolean (optional)",
+                "table_limit": "number (optional)"
             }
         }
-        tools["connect_to_database"] = {
-            "name": "connect_to_database",
-            "description": "Connect to Oracle database and verify the connection",
-            "http": {"path": "/tools/oracle/connect", "method": "POST"},
+        tools["oracle.fetchTable"] = {
+            "name": "oracle.fetchTable",
+            "description": "Fetch rows from an Oracle table",
+            "http": {"path": "/tools/oracle/fetch-table", "method": "POST"},
             "inputs": {
-                "connection_string": "string (optional) — overrides DB_CONNECTION_STRING from .env"
+                "table_name": "string (required) — name of the table",
+                "owner": "string (optional) — schema/user name",
+                "columns": "array<string> (optional)",
+                "where": "string (optional) — WHERE clause without WHERE keyword",
+                "bind_params": "object (optional)",
+                "order_by": "array<string> (optional)",
+                "limit": "number (optional)",
+                "offset": "number (optional)"
+            }
+        }
+        tools["oracle.executeSQL"] = {
+            "name": "oracle.executeSQL",
+            "description": "Execute read-only SQL against Oracle database",
+            "http": {"path": "/tools/oracle/execute-sql", "method": "POST"},
+            "inputs": {
+                "sql_statement": "string (required) — SELECT/WITH query",
+                "bind_params": "object (optional)",
+                "limit": "number (optional)"
+            }
+        }
+        tools["oracle.executeSQLQueryWithFilters"] = {
+            "name": "oracle.executeSQLQueryWithFilters",
+            "description": "Execute read-only SQL and apply simple equality filters",
+            "http": {"path": "/tools/oracle/execute-sql-query-with-filters", "method": "POST"},
+            "inputs": {
+                "sql_statement": "string (required) — SELECT/WITH query",
+                "filters": "object (optional) — e.g. {'DEPARTMENT_ID': 50}",
+                "bind_params": "object (optional)",
+                "order_by": "array<string> (optional)",
+                "limit": "number (optional)",
+                "offset": "number (optional)"
             }
         }
 
