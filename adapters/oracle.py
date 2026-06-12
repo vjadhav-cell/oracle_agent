@@ -95,11 +95,11 @@ class OracleAdapter:
         return f"""
             SELECT *
             FROM (
-                SELECT inner_query.*, ROWNUM AS __rownum
+                SELECT inner_query.*, ROWNUM AS mcp_row_num
                 FROM ({inner_sql}) inner_query
-                WHERE ROWNUM <= :__max_row
+                WHERE ROWNUM <= :mcp_max_row
             )
-            WHERE __rownum > :__offset
+            WHERE mcp_row_num > :mcp_offset
         """
 
     async def connect_to_database(self, connection_string: str | None = None) -> dict[str, Any]:
@@ -215,11 +215,11 @@ class OracleAdapter:
         if data.order_by:
             inner_sql = f"{inner_sql} ORDER BY {', '.join(data.order_by)}"
 
-        params["__offset"] = data.offset
-        params["__max_row"] = data.offset + limit
+        params["mcp_offset"] = data.offset
+        params["mcp_max_row"] = data.offset + limit
         rows = self._run_query(self._paginated_sql(inner_sql), params)
         for row in rows:
-            row.pop("__rownum", None)
+            row.pop("mcp_row_num", None)
 
         return {
             "owner": owner,
@@ -237,11 +237,11 @@ class OracleAdapter:
         sql = validate_read_only_sql(data.sql_statement)
         limit = data.limit or self.default_limit
         params = dict(data.bind_params)
-        params["__offset"] = 0
-        params["__max_row"] = limit
+        params["mcp_offset"] = 0
+        params["mcp_max_row"] = limit
         rows = self._run_query(self._paginated_sql(sql), params)
         for row in rows:
-            row.pop("__rownum", None)
+            row.pop("mcp_row_num", None)
         return rows
 
     async def execute_sql_query_with_filters(self, data: OracleExecuteSQLQueryWithFiltersInput) -> list[dict[str, Any]]:
@@ -250,7 +250,7 @@ class OracleAdapter:
         where_parts: list[str] = []
 
         for index, (column, value) in enumerate(data.filters.items()):
-            bind_name = f"__filter_{index}"
+            bind_name = f"mcp_filter_{index}"
             where_parts.append(f"{column} = :{bind_name}")
             params[bind_name] = value
 
@@ -261,11 +261,11 @@ class OracleAdapter:
             filtered_sql = f"{filtered_sql} ORDER BY {', '.join(data.order_by)}"
 
         limit = data.limit or self.default_limit
-        params["__offset"] = data.offset
-        params["__max_row"] = data.offset + limit
+        params["mcp_offset"] = data.offset
+        params["mcp_max_row"] = data.offset + limit
         rows = self._run_query(self._paginated_sql(filtered_sql), params)
         for row in rows:
-            row.pop("__rownum", None)
+            row.pop("mcp_row_num", None)
         return rows
 
     async def execute_query_with_filters(self, data: OracleExecuteSQLQueryWithFiltersInput) -> list[dict[str, Any]]:
