@@ -1,11 +1,44 @@
 # manifest.py
-from typing import Any, Dict
+from typing import Any
 
-from tool_specs.k8s import K8S_TOOL_SPECS
 from tool_specs.oracle_specs import ORACLE_TOOL_SPECS
 
+try:
+    from tool_specs.k8s import K8S_TOOL_SPECS
+except ModuleNotFoundError:
+    K8S_TOOL_SPECS = []
 
-def build_manifest(enabled_tools: Dict[str, bool]) -> Dict[str, Any]:
+
+def add_tool(
+    tools: dict[str, dict[str, Any]],
+    name: str,
+    description: str,
+    path: str,
+    inputs: dict[str, str] | None = None,
+) -> None:
+    tools[name] = {
+        "name": name,
+        "description": description,
+        "http": {"path": path, "method": "POST"},
+        "inputs": inputs or {},
+    }
+
+
+def add_tool_specs(
+    tools: dict[str, dict[str, Any]],
+    specs: list[dict[str, Any]],
+) -> None:
+    for spec in specs:
+        add_tool(
+            tools,
+            name=str(spec["tool"]),
+            description=str(spec["description"]),
+            path=str(spec["http_path"]),
+            inputs=dict(spec.get("inputs", {})),
+        )
+
+
+def build_manifest(enabled_tools: dict[str, bool]) -> dict[str, Any]:
     """
     Build a simple machine-readable manifest of available tools.
     `enabled_tools` is a dict like {"jira": True, "slack": False, "oracle": True}.
@@ -17,92 +50,19 @@ def build_manifest(enabled_tools: Dict[str, bool]) -> Dict[str, Any]:
         "description": "Send 'Authorization: Bearer <MCP_API_KEY>'"
     }
 
-    tools: Dict[str, Dict[str, Any]] = {}
+    tools: dict[str, dict[str, Any]] = {}
 
     # Always include test tool
-    tools["test.echo"] = {
-        "name": "test.echo",
-        "description": "Simple test tool to verify MCP server functionality",
-        "http": {"path": "/tools/test/echo", "method": "POST"},
-        "inputs": {
-            "message": "string (optional) — message to echo back"
-        }
-    }
+    add_tool(
+        tools,
+        name="test.echo",
+        description="Simple test tool to verify MCP server functionality",
+        path="/tools/test/echo",
+        inputs={"message": "string (optional) — message to echo back"},
+    )
 
     if enabled_tools.get("oracle"):
-        tools["oracle.testConnection"] = {
-            "name": "oracle.testConnection",
-            "description": "Test Oracle database connection (uses DB_CONNECTION_STRING from .env)",
-            "http": {"path": "/tools/oracle/test-connection", "method": "POST"},
-            "inputs": {}
-        }
-        tools["oracle.getTables"] = {
-            "name": "oracle.getTables",
-            "description": "List all tables in the Oracle database",
-            "http": {"path": "/tools/oracle/get-tables", "method": "POST"},
-            "inputs": {
-                "owner": "string (optional) — schema/user name",
-                "include_views": "boolean (optional)",
-                "limit": "number (optional)"
-            }
-        }
-        tools["oracle.getColumns"] = {
-            "name": "oracle.getColumns",
-            "description": "Get columns for a specific Oracle table",
-            "http": {"path": "/tools/oracle/get-columns", "method": "POST"},
-            "inputs": {
-                "table_name": "string (required) — name of the table",
-                "owner": "string (optional) — schema/user name"
-            }
-        }
-        tools["oracle.getSchema"] = {
-            "name": "oracle.getSchema",
-            "description": "Get full schema of all Oracle tables with column details",
-            "http": {"path": "/tools/oracle/get-schema", "method": "POST"},
-            "inputs": {
-                "owner": "string (optional) — schema/user name",
-                "include_views": "boolean (optional)",
-                "table_limit": "number (optional)"
-            }
-        }
-        tools["oracle.fetchTable"] = {
-            "name": "oracle.fetchTable",
-            "description": "Fetch rows from an Oracle table",
-            "http": {"path": "/tools/oracle/fetch-table", "method": "POST"},
-            "inputs": {
-                "table_name": "string (required) — name of the table",
-                "owner": "string (optional) — schema/user name",
-                "columns": "array<string> (optional)",
-                "where": "string (optional) — WHERE clause without WHERE keyword",
-                "bind_params": "object (optional)",
-                "order_by": "array<string> (optional)",
-                "limit": "number (optional)",
-                "offset": "number (optional)"
-            }
-        }
-        tools["oracle.executeSQL"] = {
-            "name": "oracle.executeSQL",
-            "description": "Execute read-only SQL against Oracle database",
-            "http": {"path": "/tools/oracle/execute-sql", "method": "POST"},
-            "inputs": {
-                "sql_statement": "string (required) — SELECT/WITH query",
-                "bind_params": "object (optional)",
-                "limit": "number (optional)"
-            }
-        }
-        tools["oracle.executeSQLQueryWithFilters"] = {
-            "name": "oracle.executeSQLQueryWithFilters",
-            "description": "Execute read-only SQL and apply simple equality filters",
-            "http": {"path": "/tools/oracle/execute-sql-query-with-filters", "method": "POST"},
-            "inputs": {
-                "sql_statement": "string (required) — SELECT/WITH query",
-                "filters": "object (optional) — e.g. {'DEPARTMENT_ID': 50}",
-                "bind_params": "object (optional)",
-                "order_by": "array<string> (optional)",
-                "limit": "number (optional)",
-                "offset": "number (optional)"
-            }
-        }
+        add_tool_specs(tools, ORACLE_TOOL_SPECS)
 
     # Jira
     if enabled_tools.get("jira"):
