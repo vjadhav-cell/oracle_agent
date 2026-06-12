@@ -80,7 +80,15 @@ class OracleAdapter:
 
     @staticmethod
     def _table_ref(owner: str | None, table_name: str) -> str:
+        owner, table_name = OracleAdapter._split_table_name(owner, table_name)
         return f"{owner}.{table_name}" if owner else table_name
+
+    @staticmethod
+    def _split_table_name(owner: str | None, table_name: str) -> tuple[str | None, str]:
+        if owner is None and "." in table_name:
+            parsed_owner, parsed_table = table_name.split(".", 1)
+            return parsed_owner, parsed_table
+        return owner, table_name
 
     @staticmethod
     def _paginated_sql(inner_sql: str) -> str:
@@ -145,12 +153,13 @@ class OracleAdapter:
         return self._run_query(sql, params)
 
     async def get_columns(self, data: OracleGetColumnDetailsInput) -> list[dict[str, Any]]:
-        owner_filter = "OWNER = :owner AND " if data.owner else ""
-        owner_select = "OWNER" if data.owner else "USER AS OWNER"
-        table_source = "ALL_TAB_COLUMNS" if data.owner else "USER_TAB_COLUMNS"
-        params = {"table_name": data.table_name}
-        if data.owner:
-            params["owner"] = data.owner
+        owner, table_name = self._split_table_name(data.owner, data.table_name)
+        owner_filter = "OWNER = :owner AND " if owner else ""
+        owner_select = "OWNER" if owner else "USER AS OWNER"
+        table_source = "ALL_TAB_COLUMNS" if owner else "USER_TAB_COLUMNS"
+        params = {"table_name": table_name}
+        if owner:
+            params["owner"] = owner
 
         sql = f"""
             SELECT
@@ -193,8 +202,9 @@ class OracleAdapter:
         return schema
 
     async def fetch_table(self, data: OracleFetchTableInput) -> dict[str, Any]:
+        owner, table_name = self._split_table_name(data.owner, data.table_name)
         columns = ", ".join(data.columns) if data.columns else "*"
-        table_ref = self._table_ref(data.owner, data.table_name)
+        table_ref = self._table_ref(owner, table_name)
         limit = data.limit or self.default_limit
 
         inner_sql = f"SELECT {columns} FROM {table_ref}"
@@ -212,8 +222,8 @@ class OracleAdapter:
             row.pop("__rownum", None)
 
         return {
-            "owner": data.owner,
-            "table_name": data.table_name,
+            "owner": owner,
+            "table_name": table_name,
             "limit": limit,
             "offset": data.offset,
             "row_count": len(rows),
