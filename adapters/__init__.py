@@ -1,7 +1,10 @@
-from .jira import JiraAdapter
-from .mimir import MimirAdapter
-from .opensearch import OpenSearchAdapter
-from .prometheus import PrometheusAdapter
-from .slack import SlackAdapter
+"""Adapter package.
 
-__all__ = ["SlackAdapter", "JiraAdapter","OpenSearchAdapter", "MimirAdapter", "PrometheusAdapter"]
+Import concrete adapters directly, for example:
+    from adapters.oracle import OracleAdapter
+
+Keeping this file lightweight avoids importing optional provider adapters that
+may not be installed or present in an Oracle-only setup.
+"""
+
+__all__: list[str] = []

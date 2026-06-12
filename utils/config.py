@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     # Oracle Configuration
     DEBUG: bool = False
 
+    ORACLE_ENABLED: bool = True
+
     DB_CONNECTION_STRING: str | None = None
 
     COMMENT_DB_CONNECTION_STRING: str | None = None
