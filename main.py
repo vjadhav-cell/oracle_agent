@@ -17,6 +17,7 @@ from schemas.oracle import (
     OracleGetColumnDetailsInput,
     OracleGetSchemaInput,
     OracleGetTableDetailsInput,
+    OracleTestConnectionInput,
 )
 
 oracle_adapter = OracleAdapter() 
@@ -324,46 +325,178 @@ def register_tools():
 
     # Oracle tools
     if oracle_adapter.enabled:
-        def oracle_params(params: dict | None) -> dict:
-            if not isinstance(params, dict):
-                return {}
+        def oracle_params(
+            params: dict | None = None,
+            arguments: dict | None = None,
+            fallback: dict | None = None,
+        ) -> dict:
+            if isinstance(params, dict):
+                nested = params.get("params")
+                source = nested if isinstance(nested, dict) else params
+            elif isinstance(arguments, dict):
+                nested = arguments.get("params")
+                source = nested if isinstance(nested, dict) else arguments
+            else:
+                source = fallback or {}
 
-            nested = params.get("params")
-            return nested if isinstance(nested, dict) else params
+            return {
+                key: value
+                for key, value in source.items()
+                if value is not None and value != ""
+            }
 
-        async def oracle_test_connection(params: dict | None = None, ctx=None):
+        async def oracle_test_connection(
+            params: dict | None = None,
+            arguments: dict | None = None,
+            ctx=None,
+        ):
             """Test Oracle database connection."""
-            return {"ok": True, **(await oracle_adapter.test_connection())}
+            data = OracleTestConnectionInput.parse_or_error(
+                oracle_params(params=params, arguments=arguments),
+                "oracle",
+            )
+            return {"ok": True, **(await oracle_adapter.test_connection(data))}
 
-        async def oracle_execute_sql(params: dict | None = None, ctx=None):
+        async def oracle_execute_sql(
+            sql_statement: str | None = None,
+            bind_params: dict | None = None,
+            limit: int | None = None,
+            timeout_ms: int = 30000,
+            params: dict | None = None,
+            arguments: dict | None = None,
+            ctx=None,
+        ):
             """Execute a read-only Oracle SELECT or WITH query."""
-            data = OracleExecuteSQLInput.parse_or_error(oracle_params(params), "oracle")
+            data = OracleExecuteSQLInput.parse_or_error(
+                oracle_params(
+                    params=params,
+                    arguments=arguments,
+                    fallback={
+                        "sql_statement": sql_statement,
+                        "bind_params": bind_params,
+                        "limit": limit,
+                        "timeout_ms": timeout_ms,
+                    },
+                ),
+                "oracle",
+            )
             return {"ok": True, "rows": await oracle_adapter.execute_query(data)}
 
-        async def oracle_get_tables(params: dict | None = None, ctx=None):
+        async def oracle_get_tables(
+            include_views: bool = True,
+            limit: int = 100,
+            params: dict | None = None,
+            arguments: dict | None = None,
+            ctx=None,
+        ):
             """List Oracle tables and optionally views for the connected user."""
-            data = OracleGetTableDetailsInput.parse_or_error(oracle_params(params), "oracle")
+            data = OracleGetTableDetailsInput.parse_or_error(
+                oracle_params(
+                    params=params,
+                    arguments=arguments,
+                    fallback={
+                        "include_views": include_views,
+                        "limit": limit,
+                    },
+                ),
+                "oracle",
+            )
             return {"ok": True, "tables": await oracle_adapter.get_tables(data)}
 
-        async def oracle_get_columns(params: dict | None = None, ctx=None):
+        async def oracle_get_columns(
+            table_name: str | None = None,
+            params: dict | None = None,
+            arguments: dict | None = None,
+            ctx=None,
+        ):
             """Get columns for a specific Oracle table or view."""
-            data = OracleGetColumnDetailsInput.parse_or_error(oracle_params(params), "oracle")
+            data = OracleGetColumnDetailsInput.parse_or_error(
+                oracle_params(
+                    params=params,
+                    arguments=arguments,
+                    fallback={"table_name": table_name},
+                ),
+                "oracle",
+            )
             return {"ok": True, "columns": await oracle_adapter.get_columns(data)}
 
-        async def oracle_get_schema(params: dict | None = None, ctx=None):
+        async def oracle_get_schema(
+            include_views: bool = True,
+            table_limit: int = 100,
+            params: dict | None = None,
+            arguments: dict | None = None,
+            ctx=None,
+        ):
             """Get Oracle schema details for tables and optionally views."""
-            data = OracleGetSchemaInput.parse_or_error(oracle_params(params), "oracle")
+            data = OracleGetSchemaInput.parse_or_error(
+                oracle_params(
+                    params=params,
+                    arguments=arguments,
+                    fallback={
+                        "include_views": include_views,
+                        "table_limit": table_limit,
+                    },
+                ),
+                "oracle",
+            )
             return {"ok": True, "schema": await oracle_adapter.get_schema(data)}
 
-        async def oracle_fetch_table(params: dict | None = None, ctx=None):
+        async def oracle_fetch_table(
+            table_name: str | None = None,
+            columns: list[str] | None = None,
+            where: str | None = None,
+            bind_params: dict | None = None,
+            order_by: list[str] | None = None,
+            limit: int | None = None,
+            offset: int = 0,
+            params: dict | None = None,
+            arguments: dict | None = None,
+            ctx=None,
+        ):
             """Fetch paginated rows from an Oracle table or view."""
-            data = OracleFetchTableInput.parse_or_error(oracle_params(params), "oracle")
+            data = OracleFetchTableInput.parse_or_error(
+                oracle_params(
+                    params=params,
+                    arguments=arguments,
+                    fallback={
+                        "table_name": table_name,
+                        "columns": columns,
+                        "where": where,
+                        "bind_params": bind_params,
+                        "order_by": order_by,
+                        "limit": limit,
+                        "offset": offset,
+                    },
+                ),
+                "oracle",
+            )
             return {"ok": True, "result": await oracle_adapter.fetch_table(data)}
 
-        async def oracle_execute_sql_with_filters(params: dict | None = None, ctx=None):
+        async def oracle_execute_sql_with_filters(
+            sql_statement: str | None = None,
+            filters: dict | None = None,
+            bind_params: dict | None = None,
+            order_by: list[str] | None = None,
+            limit: int | None = None,
+            offset: int = 0,
+            params: dict | None = None,
+            arguments: dict | None = None,
+            ctx=None,
+        ):
             """Execute a read-only Oracle query with equality filters."""
             data = OracleExecuteSQLQueryWithFiltersInput.parse_or_error(
-                oracle_params(params),
+                oracle_params(
+                    params=params,
+                    arguments=arguments,
+                    fallback={
+                        "sql_statement": sql_statement,
+                        "filters": filters,
+                        "bind_params": bind_params,
+                        "order_by": order_by,
+                        "limit": limit,
+                        "offset": offset,
+                    },
+                ),
                 "oracle",
             )
             rows = await oracle_adapter.execute_sql_query_with_filters(data)
