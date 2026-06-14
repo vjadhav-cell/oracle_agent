@@ -12,8 +12,11 @@ from fastmcp import FastMCP
 from adapters.oracle import OracleAdapter
 from schemas.oracle import (
     OracleExecuteSQLInput,
-    OracleGetTableDetailsInput,
+    OracleExecuteSQLQueryWithFiltersInput,
+    OracleFetchTableInput,
     OracleGetColumnDetailsInput,
+    OracleGetSchemaInput,
+    OracleGetTableDetailsInput,
 )
 
 oracle_adapter = OracleAdapter() 
@@ -226,7 +229,8 @@ def manifest_resource():
         "mimir": bool(settings.MIMIR_URL),
         "k8s": bool(settings.K8S_ENABLED),
         "prometheus": bool(settings.PROMETHEUS_ENDPOINT),
-        "tempo": bool(settings.TEMPO_URL)
+        "tempo": bool(settings.TEMPO_URL),
+        "oracle": oracle_adapter.enabled,
     }
     return build_manifest(enabled)
 
@@ -317,6 +321,61 @@ def register_tools():
             "auth_note": "Authentication temporarily disabled for stateless mode testing"
         }
     mcp.tool(name="test.echo")(test_tool)
+
+    # Oracle tools
+    if oracle_adapter.enabled:
+        def oracle_params(params: dict | None) -> dict:
+            if not isinstance(params, dict):
+                return {}
+
+            nested = params.get("params")
+            return nested if isinstance(nested, dict) else params
+
+        async def oracle_test_connection(params: dict | None = None, ctx=None):
+            """Test Oracle database connection."""
+            return {"ok": True, **(await oracle_adapter.test_connection())}
+
+        async def oracle_execute_sql(params: dict | None = None, ctx=None):
+            """Execute a read-only Oracle SELECT or WITH query."""
+            data = OracleExecuteSQLInput.parse_or_error(oracle_params(params), "oracle")
+            return {"ok": True, "rows": await oracle_adapter.execute_query(data)}
+
+        async def oracle_get_tables(params: dict | None = None, ctx=None):
+            """List Oracle tables and optionally views for the connected user."""
+            data = OracleGetTableDetailsInput.parse_or_error(oracle_params(params), "oracle")
+            return {"ok": True, "tables": await oracle_adapter.get_tables(data)}
+
+        async def oracle_get_columns(params: dict | None = None, ctx=None):
+            """Get columns for a specific Oracle table or view."""
+            data = OracleGetColumnDetailsInput.parse_or_error(oracle_params(params), "oracle")
+            return {"ok": True, "columns": await oracle_adapter.get_columns(data)}
+
+        async def oracle_get_schema(params: dict | None = None, ctx=None):
+            """Get Oracle schema details for tables and optionally views."""
+            data = OracleGetSchemaInput.parse_or_error(oracle_params(params), "oracle")
+            return {"ok": True, "schema": await oracle_adapter.get_schema(data)}
+
+        async def oracle_fetch_table(params: dict | None = None, ctx=None):
+            """Fetch paginated rows from an Oracle table or view."""
+            data = OracleFetchTableInput.parse_or_error(oracle_params(params), "oracle")
+            return {"ok": True, "result": await oracle_adapter.fetch_table(data)}
+
+        async def oracle_execute_sql_with_filters(params: dict | None = None, ctx=None):
+            """Execute a read-only Oracle query with equality filters."""
+            data = OracleExecuteSQLQueryWithFiltersInput.parse_or_error(
+                oracle_params(params),
+                "oracle",
+            )
+            rows = await oracle_adapter.execute_sql_query_with_filters(data)
+            return {"ok": True, "rows": rows}
+
+        mcp.tool(name="oracle.testConnection", tags=["oracle"])(oracle_test_connection)
+        mcp.tool(name="oracle.executeSQL", tags=["oracle"])(oracle_execute_sql)
+        mcp.tool(name="oracle.getTables", tags=["oracle"])(oracle_get_tables)
+        mcp.tool(name="oracle.getColumns", tags=["oracle"])(oracle_get_columns)
+        mcp.tool(name="oracle.getSchema", tags=["oracle"])(oracle_get_schema)
+        mcp.tool(name="oracle.fetchTable", tags=["oracle"])(oracle_fetch_table)
+        mcp.tool(name="oracle.executeSQLWithFilters", tags=["oracle"])(oracle_execute_sql_with_filters)
 
     # Jira
     if settings.JIRA_API_TOKEN and settings.JIRA_EMAIL and settings.JIRA_BASE:

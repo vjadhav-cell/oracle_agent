@@ -67,7 +67,9 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         result_key="rows",
         required=["sql_statement"],
         inputs={
-            "sql_statement": "SQL SELECT query"
+            "sql_statement": "SQL SELECT or WITH query",
+            "bind_params": "object (optional) — named bind parameters",
+            "limit": "number (optional) — maximum rows to return",
         },
     ),
 
@@ -76,6 +78,10 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         "get_tables",
         "Get Oracle tables",
         result_key="tables",
+        inputs={
+            "include_views": "boolean (optional, default true) — include views",
+            "limit": "number (optional, default 100) — maximum tables/views to return",
+        },
     ),
 
     _spec(
@@ -85,7 +91,7 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         result_key="columns",
         required=["table_name"],
         inputs={
-            "table_name": "Oracle table name"
+            "table_name": "Oracle table or view name",
         },
     ),
 
@@ -94,6 +100,43 @@ ORACLE_TOOL_SPECS: List[OracleToolSpec] = [
         "get_schema",
         "Get complete Oracle schema",
         result_key="schema",
+        inputs={
+            "include_views": "boolean (optional, default true) — include views",
+            "table_limit": "number (optional, default 100) — maximum tables/views to inspect",
+        },
+    ),
+
+    _spec(
+        "oracle.fetchTable",
+        "fetch_table",
+        "Fetch rows from an Oracle table or view",
+        result_key="result",
+        required=["table_name"],
+        inputs={
+            "table_name": "Oracle table or view name",
+            "columns": "array<string> (optional) — columns to select",
+            "where": "string (optional) — WHERE clause without the WHERE keyword",
+            "order_by": "array<string> (optional) — ORDER BY expressions",
+            "limit": "number (optional) — maximum rows to return",
+            "offset": "number (optional, default 0) — rows to skip",
+            "bind_params": "object (optional) — named bind parameters",
+        },
+    ),
+
+    _spec(
+        "oracle.executeSQLWithFilters",
+        "execute_sql_query_with_filters",
+        "Execute a read-only Oracle query with equality filters",
+        result_key="rows",
+        required=["sql_statement"],
+        inputs={
+            "sql_statement": "SQL SELECT or WITH query",
+            "filters": "object (optional) — column equality filters",
+            "order_by": "array<string> (optional) — ORDER BY expressions",
+            "limit": "number (optional) — maximum rows to return",
+            "offset": "number (optional, default 0) — rows to skip",
+            "bind_params": "object (optional) — named bind parameters",
+        },
     ),
 ]
 
