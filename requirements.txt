@@ -1,4 +1,8 @@
+a2a-sdk
 fastmcp>=2.12.3
+langchain-core
+langchain-openai
+langgraph
 pydantic>=2.11
 pydantic-settings==2.10.1
 httpx>=0.24.0

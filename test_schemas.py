@@ -14,9 +14,12 @@ from pydantic import ValidationError
 # Make sure schemas folder is in path
 sys.path.insert(0, ".")
 
-from schemas.oracle_adapter_schemas import (
+from schemas.oracle import (
     OracleConnectDatabaseInput,
     OracleCommentDBConnectionInput,
+    OracleExecuteSQLQueryWithFiltersInput,
+    OracleFetchTableInput,
+    OracleGetSchemaInput,
     OracleGetTableDetailsInput,
     OracleGetColumnDetailsInput,
     OracleExecuteSQLInput,
@@ -90,10 +93,16 @@ except ValidationError:
 print("\n── OracleGetTableDetailsInput ──")
 
 try:
-    s = OracleGetTableDetailsInput()
+    s = OracleGetTableDetailsInput(limit=25)
     check("No-input schema instantiates cleanly", True, s.to_json())
 except ValidationError as e:
     check("No-input schema instantiates cleanly", False, str(e))
+
+try:
+    OracleGetTableDetailsInput(owner="SCOTT")
+    check("Owner field rejected", False, "Should have raised ValidationError")
+except ValidationError:
+    check("Owner field rejected", True)
 
 
 # ─────────────────────────────────────────────
@@ -103,10 +112,22 @@ except ValidationError as e:
 print("\n── OracleGetColumnDetailsInput ──")
 
 try:
-    s = OracleGetColumnDetailsInput()
-    check("No-input schema instantiates cleanly", True, s.to_json())
+    s = OracleGetColumnDetailsInput(table_name="EMPLOYEES")
+    check("Valid table name accepted", True, s.to_json())
 except ValidationError as e:
-    check("No-input schema instantiates cleanly", False, str(e))
+    check("Valid table name accepted", False, str(e))
+
+try:
+    OracleGetColumnDetailsInput(table_name="EMPLOYEES", owner="SCOTT")
+    check("Owner field rejected", False, "Should have raised ValidationError")
+except ValidationError:
+    check("Owner field rejected", True)
+
+try:
+    OracleGetColumnDetailsInput(table_name="EMPLOYEES; DROP TABLE USERS")
+    check("Unsafe table name rejected", False, "Should have raised ValidationError")
+except ValidationError:
+    check("Unsafe table name rejected", True)
 
 
 # ─────────────────────────────────────────────
@@ -169,7 +190,64 @@ except ValidationError:
 
 
 # ─────────────────────────────────────────────
-# 6. Schema Registry
+# 6. Generalized ownerless Oracle inputs
+# ─────────────────────────────────────────────
+
+print("\n── Generalized ownerless Oracle inputs ──")
+
+try:
+    s = OracleGetSchemaInput(include_views=False, table_limit=10)
+    check("Schema input accepted without owner", True, s.to_json())
+except ValidationError as e:
+    check("Schema input accepted without owner", False, str(e))
+
+try:
+    OracleGetSchemaInput(owner="SCOTT")
+    check("Schema owner field rejected", False, "Should have raised ValidationError")
+except ValidationError:
+    check("Schema owner field rejected", True)
+
+try:
+    s = OracleFetchTableInput(
+        table_name="EMPLOYEES",
+        columns=["EMP_ID", "NAME"],
+        where="DEPT_ID = :dept_id",
+        order_by=["EMP_ID DESC"],
+        bind_params={"dept_id": 10},
+    )
+    check("Fetch table input accepted without owner", True, s.to_json())
+except ValidationError as e:
+    check("Fetch table input accepted without owner", False, str(e))
+
+try:
+    OracleFetchTableInput(table_name="EMPLOYEES", owner="SCOTT")
+    check("Fetch table owner field rejected", False, "Should have raised ValidationError")
+except ValidationError:
+    check("Fetch table owner field rejected", True)
+
+try:
+    s = OracleExecuteSQLQueryWithFiltersInput(
+        sql_statement="SELECT * FROM EMPLOYEES",
+        filters={"DEPT_ID": 10},
+        order_by=["EMP_ID ASC"],
+    )
+    check("Filtered SQL input accepted without owner", True, s.to_json())
+except ValidationError as e:
+    check("Filtered SQL input accepted without owner", False, str(e))
+
+try:
+    OracleExecuteSQLQueryWithFiltersInput(
+        sql_statement="SELECT * FROM EMPLOYEES",
+        filters={"DEPT_ID": 10},
+        owner="SCOTT",
+    )
+    check("Filtered SQL owner field rejected", False, "Should have raised ValidationError")
+except ValidationError:
+    check("Filtered SQL owner field rejected", True)
+
+
+# ─────────────────────────────────────────────
+# 7. Schema Registry
 # ─────────────────────────────────────────────
 
 print("\n── ORACLE_TOOL_SCHEMA_REGISTRY ──")
@@ -179,7 +257,11 @@ expected_tools = [
     "create_comment_db_connection",
     "get_table_details",
     "get_column_details",
+    "get_schema",
+    "fetch_table",
     "execute_sql",
+    "execute_sql_query_with_filters",
+    "test_connection",
 ]
 
 for tool in expected_tools:
