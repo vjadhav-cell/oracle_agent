@@ -112,6 +112,42 @@ class OracleWorkerAgent:
             _set_span_ok(span)
             return self.graph
 
+    async def stream(self, query: str, context_id: str):
+        """Stream A2A-friendly progress events for a user query."""
+        yield {
+            "is_task_complete": False,
+            "require_user_input": False,
+            "content": "Preparing Oracle worker agent...",
+        }
+
+        graph = await self.app()
+        if graph is None:
+            yield {
+                "is_task_complete": False,
+                "require_user_input": True,
+                "content": "Oracle worker agent could not be initialized.",
+            }
+            return
+
+        yield {
+            "is_task_complete": False,
+            "require_user_input": False,
+            "content": "Calling Oracle MCP tools...",
+        }
+
+        result = await graph.ainvoke(
+            {"messages": [{"role": "user", "content": query}]},
+            config={"configurable": {"thread_id": context_id}},
+        )
+        messages = result.get("messages", [])
+        final_message = messages[-1].content if messages else "No response returned."
+
+        yield {
+            "is_task_complete": True,
+            "require_user_input": False,
+            "content": final_message,
+        }
+
 
 async def create_oracle_worker_agent_with_mcp(
     *,
