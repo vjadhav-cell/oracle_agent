@@ -1,8 +1,12 @@
 # manifest.py
 from typing import Any, Dict
 
-from tool_specs.k8s import K8S_TOOL_SPECS
 from tool_specs.oracle_specs import ORACLE_TOOL_SPECS
+
+try:
+    from tool_specs.k8s import K8S_TOOL_SPECS
+except ModuleNotFoundError:
+    K8S_TOOL_SPECS = []
 
 
 def build_manifest(enabled_tools: Dict[str, bool]) -> Dict[str, Any]:
