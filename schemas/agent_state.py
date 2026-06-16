@@ -28,8 +28,10 @@ except ImportError:  # pragma: no cover - optional LangGraph runtime dependency
 
 try:
     from .agent_metadata import OracleToolName
+    from .communication import AgentMessage
 except ImportError:  # pragma: no cover - supports direct script-style imports
     from schemas.agent_metadata import OracleToolName
+    from schemas.communication import AgentMessage
 
 
 class TaskPriority(str, Enum):
@@ -49,19 +51,6 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-
-
-class AgentMessage(TypedDict):
-    """Message exchanged between agents or workflow nodes."""
-
-    message_id: str
-    sender_id: str
-    recipient_id: str
-    conversation_id: str
-    message_type: Literal["request", "response", "event", "error"]
-    content: Dict[str, Any]
-    created_at: datetime
-    metadata: Dict[str, Any]
 
 
 class AgentState(TypedDict):
