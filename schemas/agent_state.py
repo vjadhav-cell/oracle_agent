@@ -8,7 +8,6 @@ LangGraph-style workflows.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, TypedDict
 
 try:
@@ -29,28 +28,11 @@ except ImportError:  # pragma: no cover - optional LangGraph runtime dependency
 try:
     from .agent_metadata import OracleToolName
     from .communication import AgentMessage
+    from .task_schemas import TaskPriority, TaskStatus
 except ImportError:  # pragma: no cover - supports direct script-style imports
     from schemas.agent_metadata import OracleToolName
     from schemas.communication import AgentMessage
-
-
-class TaskPriority(str, Enum):
-    """Priority levels for Oracle worker tasks."""
-
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-
-class TaskStatus(str, Enum):
-    """Lifecycle status for Oracle worker tasks and tool executions."""
-
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+    from schemas.task_schemas import TaskPriority, TaskStatus
 
 
 class AgentState(TypedDict):
